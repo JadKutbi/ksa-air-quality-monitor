@@ -251,7 +251,7 @@ def create_sidebar():
                 next_refresh = last_update_ksa + timedelta(hours=refresh_hours)
                 st.caption(f"{t('next_refresh')}: {next_refresh.strftime('%H:%M:%S KSA')}")
 
-        if st.button(f"🔄 {t('refresh_now')}", use_container_width=True, type="primary"):
+        if st.button(f"🔄 {t('refresh_now')}", width="stretch", type="primary"):
             st.session_state.pollution_data = {}
             st.rerun()
 
@@ -262,7 +262,7 @@ def create_sidebar():
         # Connection diagnostics
         st.divider()
         with st.expander(f"🔧 {t('connection_diagnostics')}"):
-            if st.button(t('test_connection'), use_container_width=True):
+            if st.button(t('test_connection'), width="stretch"):
                 with st.spinner(t('testing_connection')):
                     try:
                         import ee
@@ -549,15 +549,17 @@ def display_violations(pollution_data: Dict, city: str):
                         for factory in violation['nearby_factories'][:5]:
                             col1, col2, col3 = st.columns([2, 1, 1])
                             with col1:
-                                st.write(f"**{factory['name']}**")
-                                st.write(f"{t('type')}: {factory['type']}")
+                                st.write(f"**{factory.get('name', 'Unknown')}**")
+                                st.write(f"{t('type')}: {factory.get('type', 'Unknown')}")
                             with col2:
-                                st.write(f"{t('distance')}: {factory['distance_km']:.1f} {t('km')}")
-                                if factory.get('likely_upwind'):
+                                st.write(f"{t('distance')}: {factory.get('distance_km', 0):.1f} {t('km')}")
+                                if factory.get('likely_upwind', False):
                                     st.write(f"⚠️ **{t('upwind')}**")
                             with col3:
                                 st.write(f"{t('confidence')}: {factory.get('confidence', 0):.0f}%")
-                                st.write(f"{t('emissions')}: {', '.join(factory['emissions'][:2])}")
+                                emissions = factory.get('emissions', [])
+                                if emissions:
+                                    st.write(f"{t('emissions')}: {', '.join(emissions[:2])}")
 
                 st.divider()
     else:
@@ -758,7 +760,7 @@ def display_trends(pollution_data: Dict):
                              color='Status',
                              color_discrete_map={t('within_limits'): '#10b981', t('violation'): '#ef4444'})
 
-                st.plotly_chart(fig_pie, use_container_width=True)
+                st.plotly_chart(fig_pie, width="stretch")
 
                 if violation_count > 0:
                     violating_gases = [row['Gas'] for row in trend_data if row['Max (% of Threshold)'] > 100]
@@ -863,7 +865,7 @@ def display_trends(pollution_data: Dict):
                             )
                         )
 
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
 
         st.divider()
 
@@ -888,8 +890,8 @@ def display_trends(pollution_data: Dict):
                 return 'background-color: #fef3c7; color: #92400e'
             return ''
 
-        styled_df = display_df.style.applymap(color_violations, subset=['% of Threshold'])
-        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        styled_df = display_df.style.map(color_violations, subset=['% of Threshold'])
+        st.dataframe(styled_df, width="stretch", hide_index=True)
 
 def display_historical_trends(violations: List[Dict], stats: Dict):
     """Display historical trend analysis charts."""
@@ -947,7 +949,7 @@ def display_historical_trends(violations: List[Dict], stats: Dict):
         )
         fig_timeline.update_layout(height=300)
         fig_timeline.update_traces(fill='tozeroy', line_color='#ef4444')
-        st.plotly_chart(fig_timeline, use_container_width=True)
+        st.plotly_chart(fig_timeline, width="stretch")
 
         # Summary metrics
         col1, col2, col3 = st.columns(3)
@@ -984,7 +986,7 @@ def display_historical_trends(violations: List[Dict], stats: Dict):
             }
         )
         fig_gas.update_layout(height=300, barmode='stack')
-        st.plotly_chart(fig_gas, use_container_width=True)
+        st.plotly_chart(fig_gas, width="stretch")
 
         # Gas breakdown pie chart
         col1, col2 = st.columns(2)
@@ -1006,7 +1008,7 @@ def display_historical_trends(violations: List[Dict], stats: Dict):
                 }
             )
             fig_pie.update_layout(height=250)
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width="stretch")
 
         with col2:
             # Average exceedance by gas
@@ -1022,7 +1024,7 @@ def display_historical_trends(violations: List[Dict], stats: Dict):
                 color_continuous_scale='Reds'
             )
             fig_exceed.update_layout(height=250, showlegend=False)
-            st.plotly_chart(fig_exceed, use_container_width=True)
+            st.plotly_chart(fig_exceed, width="stretch")
 
     with trend_tab3:
         # Severity analysis
@@ -1043,7 +1045,7 @@ def display_historical_trends(violations: List[Dict], stats: Dict):
             }
         )
         fig_severity.update_layout(height=300, barmode='stack')
-        st.plotly_chart(fig_severity, use_container_width=True)
+        st.plotly_chart(fig_severity, width="stretch")
 
         # Severity breakdown
         col1, col2 = st.columns(2)
@@ -1063,7 +1065,7 @@ def display_historical_trends(violations: List[Dict], stats: Dict):
                 }
             )
             fig_sev_pie.update_layout(height=250)
-            st.plotly_chart(fig_sev_pie, use_container_width=True)
+            st.plotly_chart(fig_sev_pie, width="stretch")
 
         with col2:
             # Critical violation rate

@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 120 bash -c 'while true; do curl -s https://saudi-air-quality-monitor.streamlit.app/ | grep -o \"\"<title>[^<]*</title>\"\" && break; sleep 5; done')",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(curl:*)",
+      "Bash(git push:*)",
+      "Bash(timeout 120 bash -c 'while true; do result=$(curl -s https://saudi-air-quality-monitor.streamlit.app/ 2>/dev/null | grep -o \"\"<title>[^<]*</title>\"\"); if [ -n \"\"$result\"\" ]; then echo \"\"$result\"\"; break; fi; echo \"\"Waiting for deployment...\"\"; sleep 10; done')",
+      "Bash(dir /b \"C:\\Users\\jadku\\pollution-monitor\")",
+      "Bash(gh auth status:*)",
+      "Bash(where:*)",
+      "Bash(git --version:*)",
+      "Bash(ls -la \"C:\\Users\\jadku\\pollution-monitor\\.streamlit\"\" 2>/dev/null || dir \"C:Usersjadkupollution-monitor.streamlit\"\")",
+      "Bash(winget install:*)",
+      "Bash(\"C:\\Program Files\\GitHub CLI\\gh.exe\" auth status)",
+      "Bash(\"C:\\Program Files (x86)\\GitHub CLI\\gh.exe\" auth status)",
+      "Bash(refreshenv)",
+      "Bash(PATH=\"$PATH:/c/Program Files/GitHub CLI\")",
+      "Bash(gh auth login:*)",
+      "Bash(gh repo create:*)",
+      "Bash(pip show:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
