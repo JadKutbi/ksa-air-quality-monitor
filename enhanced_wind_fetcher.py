@@ -37,39 +37,220 @@ class EnhancedWindFetcher:
             'visualcrossing': os.getenv('VISUALCROSSING_KEY')
         }
 
-        # Saudi Arabia weather station coordinates
+        # Saudi Arabia weather station coordinates - All 21 cities
         self.weather_stations = {
+            # Western Region
             'Yanbu': {
                 'airport_code': 'OEYN',  # Prince Abdul Mohsin Bin Abdulaziz Airport
-                'lat': 24.1442,
-                'lon': 38.0634,
-                'ncmc_station_id': '40430',  # Yanbu station ID
+                'lat': 24.0889,
+                'lon': 38.0618,
+                'ncmc_station_id': '40430',
                 'nearest_stations': [
                     {'id': '40430', 'name': 'Yanbu', 'distance_km': 0},
                     {'id': '40439', 'name': 'Rabigh', 'distance_km': 150},
                     {'id': '40375', 'name': 'Madinah', 'distance_km': 220}
                 ]
             },
+            'Jeddah': {
+                'airport_code': 'OEJN',  # King Abdulaziz International Airport
+                'lat': 21.4858,
+                'lon': 39.1925,
+                'ncmc_station_id': '41024',
+                'nearest_stations': [
+                    {'id': '41024', 'name': 'Jeddah', 'distance_km': 0},
+                    {'id': '41030', 'name': 'Makkah', 'distance_km': 80}
+                ]
+            },
+            'Makkah': {
+                'airport_code': 'OEJN',  # Uses Jeddah airport
+                'lat': 21.3891,
+                'lon': 39.8579,
+                'ncmc_station_id': '41030',
+                'nearest_stations': [
+                    {'id': '41030', 'name': 'Makkah', 'distance_km': 0},
+                    {'id': '41024', 'name': 'Jeddah', 'distance_km': 80}
+                ]
+            },
+            'Madinah': {
+                'airport_code': 'OEMA',  # Prince Mohammad Bin Abdulaziz Airport
+                'lat': 24.5247,
+                'lon': 39.5692,
+                'ncmc_station_id': '40375',
+                'nearest_stations': [
+                    {'id': '40375', 'name': 'Madinah', 'distance_km': 0},
+                    {'id': '40430', 'name': 'Yanbu', 'distance_km': 220}
+                ]
+            },
+            'Rabigh': {
+                'airport_code': 'OEJN',  # Uses Jeddah airport
+                'lat': 22.7976,
+                'lon': 39.0347,
+                'ncmc_station_id': '40439',
+                'nearest_stations': [
+                    {'id': '40439', 'name': 'Rabigh', 'distance_km': 0},
+                    {'id': '41024', 'name': 'Jeddah', 'distance_km': 140}
+                ]
+            },
+
+            # Eastern Region
             'Jubail': {
                 'airport_code': 'OEKK',  # King Fahd Airport nearby
-                'lat': 27.0387,
-                'lon': 49.6743,
-                'ncmc_station_id': '40417',  # Jubail station ID
+                'lat': 27.0173,
+                'lon': 49.6575,
+                'ncmc_station_id': '40417',
                 'nearest_stations': [
                     {'id': '40417', 'name': 'Jubail', 'distance_km': 0},
                     {'id': '40420', 'name': 'Dhahran', 'distance_km': 80},
                     {'id': '40416', 'name': 'Dammam', 'distance_km': 90}
                 ]
             },
+            'Dammam': {
+                'airport_code': 'OEDF',  # King Fahd International Airport
+                'lat': 26.4207,
+                'lon': 50.0888,
+                'ncmc_station_id': '40416',
+                'nearest_stations': [
+                    {'id': '40416', 'name': 'Dammam', 'distance_km': 0},
+                    {'id': '40420', 'name': 'Dhahran', 'distance_km': 15}
+                ]
+            },
+            'Dhahran': {
+                'airport_code': 'OEDR',  # Dhahran Air Base
+                'lat': 26.2361,
+                'lon': 50.0393,
+                'ncmc_station_id': '40420',
+                'nearest_stations': [
+                    {'id': '40420', 'name': 'Dhahran', 'distance_km': 0},
+                    {'id': '40416', 'name': 'Dammam', 'distance_km': 15}
+                ]
+            },
+            'Al-Khobar': {
+                'airport_code': 'OEDF',  # Uses King Fahd Airport
+                'lat': 26.2794,
+                'lon': 50.2083,
+                'ncmc_station_id': '40420',  # Uses Dhahran station
+                'nearest_stations': [
+                    {'id': '40420', 'name': 'Dhahran', 'distance_km': 10},
+                    {'id': '40416', 'name': 'Dammam', 'distance_km': 20}
+                ]
+            },
+            'Ras Tanura': {
+                'airport_code': 'OEDF',  # Uses King Fahd Airport
+                'lat': 26.6444,
+                'lon': 50.0500,
+                'ncmc_station_id': '40417',  # Uses Jubail station
+                'nearest_stations': [
+                    {'id': '40417', 'name': 'Jubail', 'distance_km': 40},
+                    {'id': '40416', 'name': 'Dammam', 'distance_km': 50}
+                ]
+            },
+            'Al-Ahsa': {
+                'airport_code': 'OEAH',  # Al-Ahsa Airport
+                'lat': 25.3898,
+                'lon': 49.5859,
+                'ncmc_station_id': '40418',
+                'nearest_stations': [
+                    {'id': '40418', 'name': 'Al-Ahsa', 'distance_km': 0},
+                    {'id': '40416', 'name': 'Dammam', 'distance_km': 150}
+                ]
+            },
+
+            # Central Region
+            'Riyadh': {
+                'airport_code': 'OERK',  # King Khalid International Airport
+                'lat': 24.7136,
+                'lon': 46.6753,
+                'ncmc_station_id': '40437',
+                'nearest_stations': [
+                    {'id': '40437', 'name': 'Riyadh', 'distance_km': 0}
+                ]
+            },
+            'Sudair': {
+                'airport_code': 'OERK',  # Uses Riyadh airport
+                'lat': 25.5833,
+                'lon': 45.6167,
+                'ncmc_station_id': '40437',  # Uses Riyadh station
+                'nearest_stations': [
+                    {'id': '40437', 'name': 'Riyadh', 'distance_km': 150}
+                ]
+            },
+            'Qassim': {
+                'airport_code': 'OEGS',  # Prince Nayef bin Abdulaziz Airport
+                'lat': 26.3260,
+                'lon': 43.9750,
+                'ncmc_station_id': '40362',
+                'nearest_stations': [
+                    {'id': '40362', 'name': 'Qassim', 'distance_km': 0}
+                ]
+            },
+
+            # Southern Region
             'Jazan': {
                 'airport_code': 'OEGN',  # King Abdullah Airport
-                'lat': 16.9011,
-                'lon': 42.5858,
-                'ncmc_station_id': '41140',  # Jazan station ID
+                'lat': 16.8892,
+                'lon': 42.5511,
+                'ncmc_station_id': '41140',
                 'nearest_stations': [
                     {'id': '41140', 'name': 'Gizan', 'distance_km': 0},
                     {'id': '41136', 'name': 'Sabya', 'distance_km': 30},
                     {'id': '41128', 'name': 'Abha', 'distance_km': 200}
+                ]
+            },
+            'Abha': {
+                'airport_code': 'OEAB',  # Abha International Airport
+                'lat': 18.2164,
+                'lon': 42.5053,
+                'ncmc_station_id': '41128',
+                'nearest_stations': [
+                    {'id': '41128', 'name': 'Abha', 'distance_km': 0},
+                    {'id': '41140', 'name': 'Gizan', 'distance_km': 200}
+                ]
+            },
+            'Najran': {
+                'airport_code': 'OENG',  # Najran Airport
+                'lat': 17.4933,
+                'lon': 44.1277,
+                'ncmc_station_id': '41136',
+                'nearest_stations': [
+                    {'id': '41136', 'name': 'Najran', 'distance_km': 0}
+                ]
+            },
+
+            # Northern Region
+            'Tabuk': {
+                'airport_code': 'OETB',  # Tabuk Regional Airport
+                'lat': 28.3838,
+                'lon': 36.5550,
+                'ncmc_station_id': '40360',
+                'nearest_stations': [
+                    {'id': '40360', 'name': 'Tabuk', 'distance_km': 0}
+                ]
+            },
+            'Hail': {
+                'airport_code': 'OEHL',  # Hail Regional Airport
+                'lat': 27.5114,
+                'lon': 41.7208,
+                'ncmc_station_id': '40394',
+                'nearest_stations': [
+                    {'id': '40394', 'name': 'Hail', 'distance_km': 0}
+                ]
+            },
+            'Al-Jouf': {
+                'airport_code': 'OESK',  # Al-Jouf Airport
+                'lat': 29.8117,
+                'lon': 40.1000,
+                'ncmc_station_id': '40356',
+                'nearest_stations': [
+                    {'id': '40356', 'name': 'Al-Jouf', 'distance_km': 0}
+                ]
+            },
+            'Arar': {
+                'airport_code': 'OERR',  # Arar Domestic Airport
+                'lat': 30.9753,
+                'lon': 41.0178,
+                'ncmc_station_id': '40357',
+                'nearest_stations': [
+                    {'id': '40357', 'name': 'Arar', 'distance_km': 0}
                 ]
             }
         }
@@ -87,6 +268,11 @@ class EnhancedWindFetcher:
         Returns:
             Wind data with confidence score based on temporal accuracy
         """
+        # Check if city exists in weather stations, if not use fallback
+        if city not in self.weather_stations:
+            logger.warning(f"City '{city}' not found in weather stations, using fallback")
+            return self._create_fallback_wind_data(city, target_time)
+
         logger.info(f"Fetching wind for {city} at {target_time} UTC (max diff: {max_time_diff_minutes} min)")
 
         results = []
