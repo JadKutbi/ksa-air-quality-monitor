@@ -619,17 +619,31 @@ Use the visual map to provide insights beyond the numerical data."""
             return "No factories found near pollution hotspot. Source may be outside monitored area or mobile source."
 
         # Find upwind factories that produce this gas
-        gas = violation_data['gas']
+        gas = violation_data.get('gas', '')
+        if not gas:
+            if is_ar:
+                return "خطأ: لم يتم تحديد نوع الغاز في بيانات المخالفة."
+            return "Error: Gas type not specified in violation data."
+
         gas_name = violation_data.get('gas_name', gas)
         wind_dir = violation_data.get('wind', {}).get('direction_cardinal', 'Unknown')
         wind_deg = violation_data.get('wind', {}).get('direction_deg', 0)
 
+        # Helper function to safely check if gas is in emissions
+        def has_emission(factory, gas_type):
+            emissions = factory.get('emissions', [])
+            if emissions is None:
+                return False
+            if isinstance(emissions, list):
+                return gas_type in emissions
+            return False
+
         # Priority 1: Upwind + produces gas
-        upwind_emitters = [f for f in factories if gas in f.get('emissions', []) and f.get('likely_upwind', False)]
+        upwind_emitters = [f for f in factories if has_emission(f, gas) and f.get('likely_upwind', False)]
         # Priority 2: Just produces gas (if no upwind match)
-        all_emitters = [f for f in factories if gas in f.get('emissions', [])]
+        all_emitters = [f for f in factories if has_emission(f, gas)]
         # Non-emitters for exclusion reasoning
-        non_emitters = [f for f in factories[:5] if gas not in f.get('emissions', [])]
+        non_emitters = [f for f in factories[:5] if not has_emission(f, gas)]
 
         candidates = upwind_emitters if upwind_emitters else all_emitters
 
