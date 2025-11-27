@@ -29,14 +29,20 @@ def format_value_for_display(value: float, gas: str) -> str:
     display_unit = gas_config.get('display_unit', 'mol/m²')
     display_value = value * conversion
 
-    if display_value >= 1000:
+    if gas == 'CH4':
         return f"{display_value:.0f} {display_unit}"
-    elif display_value >= 1:
+    elif display_value >= 1000:
+        return f"{display_value:.0f} {display_unit}"
+    elif display_value >= 100:
         return f"{display_value:.1f} {display_unit}"
-    elif display_value >= 0.01:
+    elif display_value >= 1:
         return f"{display_value:.2f} {display_unit}"
+    elif display_value >= 0.001:
+        return f"{display_value:.3f} {display_unit}"
+    elif display_value > 0:
+        return f"{display_value:.2e} {display_unit}"
     else:
-        return f"{display_value:.4f} {display_unit}"
+        return f"0 {display_unit}"
 
 
 def get_current_language():
