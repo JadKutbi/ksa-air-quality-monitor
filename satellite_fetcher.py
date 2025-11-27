@@ -254,22 +254,17 @@ class SatelliteDataFetcher:
             if sample_count > 0:
                 sample_list = samples.toList(sample_count).getInfo()
 
-                # Extract and convert pixel data to display units
+                # Extract pixel data - keep raw mol/m² values from Sentinel-5P
+                # Reference: https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/S5PL2.html
+                # NO2: 0 - 0.0003 mol/m², SO2: 0 - 0.01 mol/m², CO: 0 - 0.1 mol/m²
+                # HCHO: 0 - 0.001 mol/m², CH4: 1600 - 2000 ppb
                 for sample in sample_list:
                     props = sample['properties']
                     if gas_config["band"] in props and props[gas_config["band"]] is not None:
                         raw_value = props[gas_config["band"]]
-                        molecules_per_cm2 = raw_value * 6.02214e19
-
-                        # Scale to appropriate display units
-                        if gas in ['NO2', 'SO2', 'O3', 'HCHO']:
-                            value = molecules_per_cm2 / 1e15
-                        elif gas == 'CO':
-                            value = molecules_per_cm2 / 1e18
-                        elif gas == 'CH4':
-                            value = raw_value
-                        else:
-                            value = molecules_per_cm2 / 1e15
+                        # Keep raw value - already in mol/m² (or ppb for CH4)
+                        # Thresholds in config.py are set in these same units
+                        value = raw_value
 
                         pixels.append({
                             'lat': props['latitude'],
@@ -287,41 +282,19 @@ class SatelliteDataFetcher:
                 logger.warning(f"Selected day for {gas} had no usable data even with multi-scale processing")
                 return self._create_empty_response(city, gas,
                     error=f"Data processing failed - insufficient cloud-free pixels")
-            
-            # Convert statistics to display units
-            # Clamp all negative values to zero for cleaner display
+
+            # Keep raw values from Sentinel-5P (mol/m² or ppb for CH4)
+            # Reference: https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/S5PL2.html
+            # Thresholds in config.py are set in these same units
+            # Only clamp negative values to zero (sensor noise can produce negatives)
 
             if mean_val is not None:
-                molecules_cm2 = mean_val * 6.02214e19
-                if gas in ['NO2', 'SO2', 'O3', 'HCHO']:
-                    mean_val = molecules_cm2 / 1e15
-                elif gas == 'CO':
-                    mean_val = molecules_cm2 / 1e18
-                elif gas == 'CH4':
-                    mean_val = mean_val
-                # Clamp negatives to zero
                 mean_val = max(0.0, mean_val)
 
             if max_val is not None:
-                molecules_cm2 = max_val * 6.02214e19
-                if gas in ['NO2', 'SO2', 'O3', 'HCHO']:
-                    max_val = molecules_cm2 / 1e15
-                elif gas == 'CO':
-                    max_val = molecules_cm2 / 1e18
-                elif gas == 'CH4':
-                    max_val = max_val
-                # Clamp negatives to zero
                 max_val = max(0.0, max_val)
 
             if min_val is not None:
-                molecules_cm2 = min_val * 6.02214e19
-                if gas in ['NO2', 'SO2', 'O3', 'HCHO']:
-                    min_val = molecules_cm2 / 1e15
-                elif gas == 'CO':
-                    min_val = molecules_cm2 / 1e18
-                elif gas == 'CH4':
-                    min_val = min_val
-                # Clamp negatives to zero
                 min_val = max(0.0, min_val)
 
 

@@ -22,7 +22,8 @@
       "Bash(gh auth login:*)",
       "Bash(gh repo create:*)",
       "Bash(pip show:*)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "WebFetch(domain:documentation.dataspace.copernicus.eu)"
     ],
     "deny": [],
     "ask": []

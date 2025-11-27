@@ -164,6 +164,8 @@ CITIES = {
 # =============================================================================
 # GAS MONITORING CONFIGURATION
 # Sentinel-5P TROPOMI products for tropospheric pollution monitoring
+# Units based on Sentinel Hub S5P L2 documentation:
+# https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/S5PL2.html
 # =============================================================================
 GAS_PRODUCTS = {
     "NO2": {
@@ -171,88 +173,114 @@ GAS_PRODUCTS = {
         "dataset": "COPERNICUS/S5P/NRTI/L3_NO2",
         "band": "NO2_column_number_density",
         "unit": "mol/m²",
-        "conversion_factor": 1e15,
-        "display_unit": "10^15 mol/cm²"
+        "conversion_factor": 1e6,  # Convert to µmol/m² for readability
+        "display_unit": "µmol/m²",
+        "typical_range": [0, 0.0003],  # mol/m² - polluted cities may reach 2-3x
+        "source_unit": "MOL_M2"
     },
     "SO2": {
         "name": "Sulfur Dioxide",
         "dataset": "COPERNICUS/S5P/NRTI/L3_SO2",
         "band": "SO2_column_number_density",
         "unit": "mol/m²",
-        "conversion_factor": 1e15,
-        "display_unit": "10^15 mol/cm²"
+        "conversion_factor": 1e6,  # Convert to µmol/m² for readability
+        "display_unit": "µmol/m²",
+        "typical_range": [0, 0.01],  # mol/m² - volcanic eruptions can exceed 0.35
+        "source_unit": "MOL_M2"
     },
     "CO": {
         "name": "Carbon Monoxide",
         "dataset": "COPERNICUS/S5P/NRTI/L3_CO",
         "band": "CO_column_number_density",
         "unit": "mol/m²",
-        "conversion_factor": 1e18,
-        "display_unit": "10^18 mol/cm²"
+        "conversion_factor": 1e3,  # Convert to mmol/m² for readability
+        "display_unit": "mmol/m²",
+        "typical_range": [0, 0.1],  # mol/m² - wildfires may exceed
+        "source_unit": "MOL_M2"
     },
     "HCHO": {
         "name": "Formaldehyde",
         "dataset": "COPERNICUS/S5P/NRTI/L3_HCHO",
         "band": "tropospheric_HCHO_column_number_density",
         "unit": "mol/m²",
-        "conversion_factor": 1e15,
-        "display_unit": "10^15 mol/cm²"
+        "conversion_factor": 1e6,  # Convert to µmol/m² for readability
+        "display_unit": "µmol/m²",
+        "typical_range": [0, 0.001],  # mol/m² - events may exceed
+        "source_unit": "MOL_M2"
     },
     "CH4": {
         "name": "Methane",
         "dataset": "COPERNICUS/S5P/OFFL/L3_CH4",
         "band": "CH4_column_volume_mixing_ratio_dry_air",
         "unit": "ppb",
-        "conversion_factor": 1,
-        "display_unit": "ppb"
+        "conversion_factor": 1,  # Already in ppb
+        "display_unit": "ppb",
+        "typical_range": [1600, 2000],  # ppb
+        "source_unit": "PPB"
     }
 }
 
 # =============================================================================
 # WHO 2021 AIR QUALITY THRESHOLDS
-# Column density thresholds derived from WHO Air Quality Guidelines 2021
-# and validated against Sentinel-5P satellite measurements
+# Column density thresholds based on Sentinel-5P typical ranges
+# Reference: https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/S5PL2.html
+# Thresholds are in raw mol/m² units from satellite (before conversion factor)
 # =============================================================================
 GAS_THRESHOLDS = {
     "NO2": {
         "annual_avg_ugm3": 10,
         "24h_avg_ugm3": 25,
         "1h_avg_ugm3": 200,
-        "column_threshold": 10.0,
-        "critical_threshold": 20.0,
-        "unit": "10^15 mol/cm²",
-        "source": "WHO Air Quality Guidelines 2021"
+        # Typical range: 0 - 0.0003 mol/m², polluted cities 2-3x higher
+        "column_threshold": 0.0001,      # 100 µmol/m² - elevated level
+        "critical_threshold": 0.0002,    # 200 µmol/m² - high pollution
+        "extreme_threshold": 0.0005,     # 500 µmol/m² - severe pollution
+        "unit": "mol/m²",
+        "display_unit": "µmol/m²",
+        "source": "WHO Air Quality Guidelines 2021 + Sentinel-5P ranges"
     },
     "SO2": {
         "24h_avg_ugm3": 40,
         "10min_avg_ugm3": 500,
-        "column_threshold": 2.0,
-        "critical_threshold": 5.0,
-        "unit": "10^15 mol/cm²",
-        "source": "WHO Air Quality Guidelines 2021"
+        # Typical range: 0 - 0.01 mol/m², volcanic can exceed 0.35
+        "column_threshold": 0.001,       # 1000 µmol/m² - elevated level
+        "critical_threshold": 0.005,     # 5000 µmol/m² - high pollution
+        "extreme_threshold": 0.02,       # 20000 µmol/m² - severe/volcanic
+        "unit": "mol/m²",
+        "display_unit": "µmol/m²",
+        "source": "WHO Air Quality Guidelines 2021 + Sentinel-5P ranges"
     },
     "CO": {
         "24h_avg_mgm3": 4,
         "8h_avg_mgm3": 10,
         "1h_avg_mgm3": 35,
-        "column_threshold": 3.5,
-        "critical_threshold": 5.0,
-        "unit": "10^18 mol/cm²",
-        "source": "WHO/EPA Standards"
+        # Typical range: 0 - 0.1 mol/m², wildfires can exceed
+        "column_threshold": 0.03,        # 30 mmol/m² - elevated level
+        "critical_threshold": 0.05,      # 50 mmol/m² - high pollution
+        "extreme_threshold": 0.1,        # 100 mmol/m² - severe/fire
+        "unit": "mol/m²",
+        "display_unit": "mmol/m²",
+        "source": "WHO/EPA Standards + Sentinel-5P ranges"
     },
     "HCHO": {
         "30min_avg_ugm3": 100,
-        "column_threshold": 8.0,
-        "critical_threshold": 12.0,
-        "unit": "10^15 mol/cm²",
-        "source": "WHO Indoor Air Quality Guidelines"
+        # Typical range: 0 - 0.001 mol/m²
+        "column_threshold": 0.0003,      # 300 µmol/m² - elevated level
+        "critical_threshold": 0.0006,    # 600 µmol/m² - high pollution
+        "extreme_threshold": 0.001,      # 1000 µmol/m² - severe
+        "unit": "mol/m²",
+        "display_unit": "µmol/m²",
+        "source": "WHO Indoor Air Quality Guidelines + Sentinel-5P ranges"
     },
     "CH4": {
         "background_ppb": 1900,
-        "column_threshold": 1950,
-        "critical_threshold": 2100,
+        # Typical range: 1600 - 2000 ppb
+        "column_threshold": 1900,        # ppb - above background
+        "critical_threshold": 1950,      # ppb - elevated
+        "extreme_threshold": 2100,       # ppb - high methane
         "unit": "ppb",
-        "source": "NOAA Global Monitoring Laboratory"
+        "display_unit": "ppb",
+        "source": "NOAA Global Monitoring Laboratory + Sentinel-5P ranges"
     }
 }
 

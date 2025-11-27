@@ -41,6 +41,64 @@ from dashboard_components import (
 )
 import config
 
+
+def format_gas_value(value: float, gas: str) -> str:
+    """
+    Format gas concentration values for display.
+    Values are in raw units from Sentinel-5P (mol/m² or ppb).
+
+    Reference typical ranges:
+    - NO2: 0 - 0.0003 mol/m² (polluted cities may reach 2-3x)
+    - SO2: 0 - 0.01 mol/m²
+    - CO: 0 - 0.1 mol/m²
+    - HCHO: 0 - 0.001 mol/m²
+    - CH4: 1600 - 2000 ppb
+    """
+    if value is None:
+        return "N/A"
+
+    gas_config = config.GAS_PRODUCTS.get(gas, {})
+    conversion = gas_config.get('conversion_factor', 1)
+    display_unit = gas_config.get('display_unit', 'mol/m²')
+
+    # Convert to display units
+    display_value = value * conversion
+
+    # Format based on magnitude
+    if gas == 'CH4':
+        return f"{display_value:.0f} {display_unit}"
+    elif display_value >= 1000:
+        return f"{display_value:.0f} {display_unit}"
+    elif display_value >= 1:
+        return f"{display_value:.1f} {display_unit}"
+    elif display_value >= 0.01:
+        return f"{display_value:.2f} {display_unit}"
+    else:
+        return f"{display_value:.4f} {display_unit}"
+
+
+def format_gas_value_short(value: float, gas: str) -> str:
+    """Short format for metrics (without unit)."""
+    if value is None:
+        return "N/A"
+
+    gas_config = config.GAS_PRODUCTS.get(gas, {})
+    conversion = gas_config.get('conversion_factor', 1)
+
+    display_value = value * conversion
+
+    if gas == 'CH4':
+        return f"{display_value:.0f}"
+    elif display_value >= 1000:
+        return f"{display_value:.0f}"
+    elif display_value >= 1:
+        return f"{display_value:.1f}"
+    elif display_value >= 0.01:
+        return f"{display_value:.2f}"
+    else:
+        return f"{display_value:.4f}"
+
+
 # Page configuration
 st.set_page_config(
     page_title="Saudi Air Quality Monitor",
