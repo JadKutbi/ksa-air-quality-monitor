@@ -1,11 +1,11 @@
 """
 Pollution Analyzer Module
 
-Analyzes satellite pollution data to detect WHO threshold violations and
+Analyzes satellite pollution data to detect threshold violations and
 attribute sources using multi-factor scoring and AI-powered analysis.
 
 Features:
-    - WHO 2021 threshold violation detection
+    - Satellite-based threshold violation detection (Sentinel-5P typical ranges)
     - Wind-based upwind factory identification
     - Multi-factor confidence scoring (wind, distance, emissions)
     - AI source attribution using Gemini with optional vision analysis
@@ -122,7 +122,7 @@ class PollutionAnalyzer:
     
     def check_threshold_violation(self, gas: str, value: float) -> Dict:
         """
-        Check if gas concentration exceeds WHO thresholds
+        Check if gas concentration exceeds satellite thresholds
         
         Args:
             gas: Gas type
@@ -431,7 +431,7 @@ class PollutionAnalyzer:
 **Violation Details:**
 - Gas: {violation_data['gas']} ({violation_data['gas_name']})
 - Measured Value: {violation_data['max_value']:.2f} {violation_data['unit']}
-- WHO Threshold: {violation_data['threshold']:.2f} {violation_data['unit']}
+- Satellite Threshold: {violation_data['threshold']:.2f} {violation_data['unit']}
 - Exceeded by: {violation_data['percentage_over']:.1f}%
 - Severity: {violation_data['severity']}
 - Location: {violation_data['city']} at ({violation_data['hotspot']['lat']:.4f}, {violation_data['hotspot']['lon']:.4f})

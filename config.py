@@ -221,66 +221,64 @@ GAS_PRODUCTS = {
 }
 
 # =============================================================================
-# WHO 2021 AIR QUALITY THRESHOLDS
-# Column density thresholds based on Sentinel-5P typical ranges
+# SATELLITE-BASED POLLUTION THRESHOLDS
+# Column density thresholds based on Sentinel-5P TROPOMI typical ranges
 # Reference: https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/S5PL2.html
-# Thresholds are in raw mol/m² units from satellite (before conversion factor)
+#
+# NOTE: These are atmospheric column density thresholds (mol/m²), NOT surface
+# concentration thresholds (µg/m³). They cannot be directly compared to WHO
+# air quality guidelines which measure ground-level concentrations.
+#
+# Thresholds are calibrated against Sentinel-5P typical observed ranges:
+# - elevated: Early warning level (50-67% of typical upper range)
+# - high: Significant pollution (at or near upper typical range)
+# - severe: Extreme event (exceeds typical range - industrial/fire/volcanic)
 # =============================================================================
 GAS_THRESHOLDS = {
     "NO2": {
-        "annual_avg_ugm3": 10,
-        "24h_avg_ugm3": 25,
-        "1h_avg_ugm3": 200,
         # Typical range: 0 - 0.0003 mol/m², polluted cities 2-3x higher
-        "column_threshold": 0.0001,      # 100 µmol/m² - elevated level
-        "critical_threshold": 0.0002,    # 200 µmol/m² - high pollution
-        "extreme_threshold": 0.0005,     # 500 µmol/m² - severe pollution
+        "column_threshold": 0.000075,    # 75 µmol/m² - elevated (25% of upper)
+        "critical_threshold": 0.00015,   # 150 µmol/m² - high (50% of upper)
+        "extreme_threshold": 0.000225,   # 225 µmol/m² - severe (75% of upper)
         "unit": "mol/m²",
         "display_unit": "µmol/m²",
-        "source": "WHO Air Quality Guidelines 2021 + Sentinel-5P ranges"
+        "source": "Sentinel-5P TROPOMI typical ranges"
     },
     "SO2": {
-        "24h_avg_ugm3": 40,
-        "10min_avg_ugm3": 500,
         # Typical range: 0 - 0.01 mol/m², volcanic can exceed 0.35
-        "column_threshold": 0.001,       # 1000 µmol/m² - elevated level
-        "critical_threshold": 0.005,     # 5000 µmol/m² - high pollution
-        "extreme_threshold": 0.02,       # 20000 µmol/m² - severe/volcanic
+        "column_threshold": 0.0025,      # 2500 µmol/m² - elevated (25% of upper)
+        "critical_threshold": 0.005,     # 5000 µmol/m² - high (50% of upper)
+        "extreme_threshold": 0.0075,     # 7500 µmol/m² - severe (75% of upper)
         "unit": "mol/m²",
         "display_unit": "µmol/m²",
-        "source": "WHO Air Quality Guidelines 2021 + Sentinel-5P ranges"
+        "source": "Sentinel-5P TROPOMI typical ranges"
     },
     "CO": {
-        "24h_avg_mgm3": 4,
-        "8h_avg_mgm3": 10,
-        "1h_avg_mgm3": 35,
         # Typical range: 0 - 0.1 mol/m², wildfires can exceed
-        "column_threshold": 0.03,        # 30 mmol/m² - elevated level
-        "critical_threshold": 0.05,      # 50 mmol/m² - high pollution
-        "extreme_threshold": 0.1,        # 100 mmol/m² - severe/fire
+        "column_threshold": 0.025,       # 25 mmol/m² - elevated (25% of upper)
+        "critical_threshold": 0.05,      # 50 mmol/m² - high (50% of upper)
+        "extreme_threshold": 0.075,      # 75 mmol/m² - severe (75% of upper)
         "unit": "mol/m²",
         "display_unit": "mmol/m²",
-        "source": "WHO/EPA Standards + Sentinel-5P ranges"
+        "source": "Sentinel-5P TROPOMI typical ranges"
     },
     "HCHO": {
-        "30min_avg_ugm3": 100,
         # Typical range: 0 - 0.001 mol/m²
-        "column_threshold": 0.0003,      # 300 µmol/m² - elevated level
-        "critical_threshold": 0.0006,    # 600 µmol/m² - high pollution
-        "extreme_threshold": 0.001,      # 1000 µmol/m² - severe
+        "column_threshold": 0.00025,     # 250 µmol/m² - elevated (25% of upper)
+        "critical_threshold": 0.0005,    # 500 µmol/m² - high (50% of upper)
+        "extreme_threshold": 0.00075,    # 750 µmol/m² - severe (75% of upper)
         "unit": "mol/m²",
         "display_unit": "µmol/m²",
-        "source": "WHO Indoor Air Quality Guidelines + Sentinel-5P ranges"
+        "source": "Sentinel-5P TROPOMI typical ranges"
     },
     "CH4": {
-        "background_ppb": 1900,
-        # Typical range: 1600 - 2000 ppb
-        "column_threshold": 1900,        # ppb - above background
-        "critical_threshold": 1950,      # ppb - elevated
-        "extreme_threshold": 2100,       # ppb - high methane
+        # Typical range: 1600 - 2000 ppb (400 ppb span)
+        "column_threshold": 1700,        # ppb - elevated (25% into range)
+        "critical_threshold": 1800,      # ppb - high (50% into range)
+        "extreme_threshold": 1900,       # ppb - severe (75% into range)
         "unit": "ppb",
         "display_unit": "ppb",
-        "source": "NOAA Global Monitoring Laboratory + Sentinel-5P ranges"
+        "source": "Sentinel-5P TROPOMI typical ranges"
     }
 }
 

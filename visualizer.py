@@ -1,11 +1,11 @@
 """
 Map Visualizer Module
 
-Creates interactive Folium maps with WHO threshold-normalized heatmaps
+Creates interactive Folium maps with satellite threshold-normalized heatmaps
 and industrial facility markers for pollution source attribution.
 
 Features:
-    - Health-based color scaling (WHO 2021 thresholds)
+    - Health-based color scaling (Sentinel-5P typical ranges)
     - Wind direction arrows synchronized to satellite observation time
     - Factory markers with upwind/downwind status
     - Layer controls for satellite imagery overlay
@@ -179,7 +179,7 @@ class MapVisualizer:
         <b>📅 Time (KSA):</b> {gas_data.get('timestamp_ksa', 'N/A')}<br>
         <b>📊 Mean:</b> {gas_data['statistics'].get('mean', 0):.2f} {gas_data['unit']} |
         <b>⚠️ Peak:</b> {gas_data['statistics'].get('max', 0):.2f} {gas_data['unit']}<br>
-        <b>🏥 WHO Threshold:</b> {threshold_str} {gas_data['unit']} |
+        <b>📈 Threshold:</b> {threshold_str} {gas_data['unit']} |
         <b>🚨 Critical:</b> {critical_str} {gas_data['unit']}<br>
         <small style="color: #666;">Data: Sentinel-5P TROPOMI | Resolution: ~7km | Source: NASA/ESA</small>
         </p>
@@ -202,7 +202,7 @@ class MapVisualizer:
             <div><span style="display:inline-block; width:20px; height:12px; background:#8F3F97; border:1px solid #ccc;"></span> Severe</div>
             <div><span style="display:inline-block; width:20px; height:12px; background:#7E0023; border:1px solid #ccc;"></span> Hazardous (Critical)</div>
         </div>
-        <small style="color:#666; margin-top:5px; display:block;">Colors scaled to WHO health guidelines</small>
+        <small style="color:#666; margin-top:5px; display:block;">Colors scaled to Sentinel-5P typical ranges</small>
         </div>
         '''
         m.get_root().html.add_child(folium.Element(legend_html))
