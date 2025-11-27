@@ -20,6 +20,25 @@ import os
 import config
 
 
+def format_value_for_display(value: float, gas: str) -> str:
+    """Format gas value with proper unit conversion for display."""
+    if value is None:
+        return "N/A"
+    gas_config = config.GAS_PRODUCTS.get(gas, {})
+    conversion = gas_config.get('conversion_factor', 1)
+    display_unit = gas_config.get('display_unit', 'mol/m²')
+    display_value = value * conversion
+
+    if display_value >= 1000:
+        return f"{display_value:.0f} {display_unit}"
+    elif display_value >= 1:
+        return f"{display_value:.1f} {display_unit}"
+    elif display_value >= 0.01:
+        return f"{display_value:.2f} {display_unit}"
+    else:
+        return f"{display_value:.4f} {display_unit}"
+
+
 def get_current_language():
     """Get the current language from Streamlit session state, or default to English."""
     try:
@@ -425,13 +444,18 @@ class PollutionAnalyzer:
             else:
                 language_instruction = "Respond in English."
 
+            # Format values for display in prompt
+            gas = violation_data['gas']
+            measured_formatted = format_value_for_display(violation_data['max_value'], gas)
+            threshold_formatted = format_value_for_display(violation_data['threshold'], gas)
+
             # Prepare context for Gemini - SAME PROMPT, DIFFERENT API
             prompt = f"""You are an environmental monitoring AI expert analyzing satellite pollution data.
 
 **Violation Details:**
 - Gas: {violation_data['gas']} ({violation_data['gas_name']})
-- Measured Value: {violation_data['max_value']:.2f} {violation_data['unit']}
-- Satellite Threshold: {violation_data['threshold']:.2f} {violation_data['unit']}
+- Measured Value: {measured_formatted}
+- Satellite Threshold: {threshold_formatted}
 - Exceeded by: {violation_data['percentage_over']:.1f}%
 - Severity: {violation_data['severity']}
 - Location: {violation_data['city']} at ({violation_data['hotspot']['lat']:.4f}, {violation_data['hotspot']['lon']:.4f})

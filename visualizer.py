@@ -23,6 +23,26 @@ import time
 logging.basicConfig(level=config.LOG_LEVEL, format=config.LOG_FORMAT)
 logger = logging.getLogger(__name__)
 
+
+def format_value_for_display(value: float, gas: str) -> str:
+    """Format gas value with proper unit conversion for display."""
+    if value is None:
+        return "N/A"
+    gas_config = config.GAS_PRODUCTS.get(gas, {})
+    conversion = gas_config.get('conversion_factor', 1)
+    display_unit = gas_config.get('display_unit', 'mol/m²')
+    display_value = value * conversion
+
+    if display_value >= 1000:
+        return f"{display_value:.0f} {display_unit}"
+    elif display_value >= 1:
+        return f"{display_value:.1f} {display_unit}"
+    elif display_value >= 0.01:
+        return f"{display_value:.2f} {display_unit}"
+    else:
+        return f"{display_value:.4f} {display_unit}"
+
+
 class MapVisualizer:
     """Create interactive pollution maps with heatmaps and factory locations"""
     
@@ -108,15 +128,16 @@ class MapVisualizer:
         # Add hotspot marker
         if hotspot:
             icon_color = 'red' if violation else 'orange'
+            hotspot_formatted = format_value_for_display(hotspot['value'], gas)
             folium.Marker(
                 location=[hotspot['lat'], hotspot['lon']],
                 popup=folium.Popup(
                     f"<b>Maximum {gas} Concentration</b><br>"
-                    f"Value: {hotspot['value']:.2f} {hotspot['unit']}<br>"
+                    f"Value: {hotspot_formatted}<br>"
                     f"Location: {hotspot['lat']:.4f}, {hotspot['lon']:.4f}",
                     max_width=300
                 ),
-                tooltip=f"Peak {gas}: {hotspot['value']:.2f}",
+                tooltip=f"Peak {gas}: {hotspot_formatted}",
                 icon=folium.Icon(color=icon_color, icon='exclamation-triangle', prefix='fa')
             ).add_to(m)
             
@@ -165,8 +186,12 @@ class MapVisualizer:
         threshold_config = config.GAS_THRESHOLDS.get(gas, {})
         threshold = threshold_config.get('column_threshold', 'N/A')
         critical = threshold_config.get('critical_threshold', 'N/A')
-        threshold_str = f"{threshold:.1f}" if isinstance(threshold, (int, float)) else "N/A"
-        critical_str = f"{critical:.1f}" if isinstance(critical, (int, float)) else "N/A"
+
+        # Format all values with proper unit conversion
+        mean_formatted = format_value_for_display(gas_data['statistics'].get('mean', 0), gas)
+        peak_formatted = format_value_for_display(gas_data['statistics'].get('max', 0), gas)
+        threshold_formatted = format_value_for_display(threshold, gas) if isinstance(threshold, (int, float)) else "N/A"
+        critical_formatted = format_value_for_display(critical, gas) if isinstance(critical, (int, float)) else "N/A"
 
         title_html = f'''
         <div style="position: fixed;
@@ -177,10 +202,10 @@ class MapVisualizer:
         <h4 style="margin:0; color: #333;">{city} - {gas_data.get("gas_name", gas)} Satellite Monitor</h4>
         <p style="margin:5px 0; line-height:1.6;">
         <b>📅 Time (KSA):</b> {gas_data.get('timestamp_ksa', 'N/A')}<br>
-        <b>📊 Mean:</b> {gas_data['statistics'].get('mean', 0):.2f} {gas_data['unit']} |
-        <b>⚠️ Peak:</b> {gas_data['statistics'].get('max', 0):.2f} {gas_data['unit']}<br>
-        <b>📈 Threshold:</b> {threshold_str} {gas_data['unit']} |
-        <b>🚨 Critical:</b> {critical_str} {gas_data['unit']}<br>
+        <b>📊 Mean:</b> {mean_formatted} |
+        <b>⚠️ Peak:</b> {peak_formatted}<br>
+        <b>📈 Threshold:</b> {threshold_formatted} |
+        <b>🚨 Critical:</b> {critical_formatted}<br>
         <small style="color: #666;">Data: Sentinel-5P TROPOMI | Resolution: ~7km | Source: NASA/ESA</small>
         </p>
         </div>

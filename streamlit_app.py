@@ -669,12 +669,12 @@ def display_map(pollution_data: Dict, city: str):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric(f"{selected_gas} {t('max')}",
-                     f"{gas_data['statistics']['max']:.2f}",
-                     f"{gas_data['unit']}")
+                     format_gas_value_short(gas_data['statistics']['max'], selected_gas),
+                     config.GAS_PRODUCTS[selected_gas].get('display_unit', gas_data['unit']))
         with col2:
             st.metric(f"{selected_gas} {t('mean')}",
-                     f"{gas_data['statistics']['mean']:.2f}",
-                     f"{t('min')}: {gas_data['statistics']['min']:.2f}")
+                     format_gas_value_short(gas_data['statistics']['mean'], selected_gas),
+                     f"{t('min')}: {format_gas_value_short(gas_data['statistics']['min'], selected_gas)}")
         with col3:
             if gas_data.get('wind', {}).get('success'):
                 wind = gas_data['wind']
