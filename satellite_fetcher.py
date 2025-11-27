@@ -331,7 +331,7 @@ class SatelliteDataFetcher:
                         'min': min_val if min_val is not None else 0,
                         'pixel_count': len(pixels)
                     },
-                    'unit': gas_config['display_unit'],
+                    'unit': gas_config['unit'],  # Raw unit (mol/m² or ppb) - conversion happens at display time
                     'bbox': bbox,
                     'wind': wind_data,
                     'data_quality': 'statistics_only' if len(pixels) == 0 else 'full'
