@@ -439,15 +439,15 @@ class PollutionAnalyzer:
                 angle_diff = abs((reverse_bearing - wind_dir + 180) % 360 - 180)
 
                 prompt += f"""
-{i}. {factory['name']}
-   - Type: {factory['type']}
-   - Distance: {factory['distance_km']:.1f} km
+{i}. {factory.get('name', 'Unknown')}
+   - Type: {factory.get('type', 'Unknown')}
+   - Distance: {factory.get('distance_km', 0):.1f} km
    - Bearing to hotspot: {bearing:.0f}° (Factory is {self._get_direction_relative_to_hotspot(bearing)} of hotspot)
-   - Produces: {', '.join(factory['emissions'])}
-   - Emission match: {'✓ YES - produces {}'.format(violation_data['gas']) if violation_data['gas'] in factory['emissions'] else '✗ NO - does not produce {}'.format(violation_data['gas'])}
-   - Upwind status: {'✓ UPWIND (wind blows from factory to hotspot)' if factory['likely_upwind'] else '✗ NOT UPWIND (wind angle mismatch)'}
+   - Produces: {', '.join(factory.get('emissions', []))}
+   - Emission match: {'✓ YES - produces {}'.format(violation_data['gas']) if violation_data['gas'] in factory.get('emissions', []) else '✗ NO - does not produce {}'.format(violation_data['gas'])}
+   - Upwind status: {'✓ UPWIND (wind blows from factory to hotspot)' if factory.get('likely_upwind', False) else '✗ NOT UPWIND (wind angle mismatch)'}
    - Wind alignment: {angle_diff:.0f}° deviation from ideal
-   - Confidence: {factory['confidence']:.0f}%
+   - Confidence: {factory.get('confidence', 0):.0f}%
 """
             
             prompt += """
@@ -625,11 +625,11 @@ Use the visual map to provide insights beyond the numerical data."""
         wind_deg = violation_data.get('wind', {}).get('direction_deg', 0)
 
         # Priority 1: Upwind + produces gas
-        upwind_emitters = [f for f in factories if gas in f['emissions'] and f['likely_upwind']]
+        upwind_emitters = [f for f in factories if gas in f.get('emissions', []) and f.get('likely_upwind', False)]
         # Priority 2: Just produces gas (if no upwind match)
-        all_emitters = [f for f in factories if gas in f['emissions']]
+        all_emitters = [f for f in factories if gas in f.get('emissions', [])]
         # Non-emitters for exclusion reasoning
-        non_emitters = [f for f in factories[:5] if gas not in f['emissions']]
+        non_emitters = [f for f in factories[:5] if gas not in f.get('emissions', [])]
 
         candidates = upwind_emitters if upwind_emitters else all_emitters
 
@@ -740,47 +740,47 @@ Use the visual map to provide insights beyond the numerical data."""
                 analysis += f"  - وقت رصد القمر الصناعي: {sat_time}\n"
                 analysis += f"  - الفارق الزمني: {time_offset:.1f} ساعات\n\n" if isinstance(time_offset, (int, float)) else f"  - الفارق الزمني: {time_offset}\n\n"
 
-                if top['likely_upwind']:
+                if top.get('likely_upwind', False):
                     analysis += f"✓ توافق الرياح: المصنع في اتجاه الرياح من البؤرة\n"
                     analysis += f"  - الرياح تهب من المصنع إلى بؤرة التلوث\n"
                     analysis += f"  - الاتجاه من المصنع: {top.get('bearing_to_hotspot', 0):.0f}°\n"
-                    analysis += f"  - ثقة التوافق: {top['confidence']:.0f}%\n"
+                    analysis += f"  - ثقة التوافق: {top.get('confidence', 0):.0f}%\n"
                 else:
                     analysis += f"⚠️ توافق الرياح: المصنع ليس في اتجاه الرياح المثالي\n"
                     analysis += f"  - الاتجاه من المصنع: {top.get('bearing_to_hotspot', 0):.0f}°\n"
                     analysis += f"  - عدم تطابق اتجاه الرياح (تم اختياره لتطابق الانبعاثات + القرب)\n"
-                    analysis += f"  - ثقة التوافق: {top['confidence']:.0f}%\n"
+                    analysis += f"  - ثقة التوافق: {top.get('confidence', 0):.0f}%\n"
 
                 # 3. Distance
-                analysis += f"✓ المسافة: {top['distance_km']:.1f} كم من البؤرة\n\n"
+                analysis += f"✓ المسافة: {top.get('distance_km', 0):.1f} كم من البؤرة\n\n"
 
                 # Exclusion reasoning
                 if non_emitters:
                     analysis += f"المصانع المستبعدة:\n"
                     for f in non_emitters[:2]:
-                        analysis += f"✗ {f['name']}: لا ينتج {gas_name}\n"
+                        analysis += f"✗ {f.get('name', 'Unknown')}: لا ينتج {gas_name}\n"
 
                 # Similar distance comparison
                 similar_distance_emitters = [
                     f for f in all_emitters
-                    if f['name'] != top['name']
-                    and abs(f['distance_km'] - top['distance_km']) < 2.0
+                    if f.get('name') != top.get('name')
+                    and abs(f.get('distance_km', 0) - top.get('distance_km', 0)) < 2.0
                 ]
 
                 if similar_distance_emitters:
                     analysis += f"\nمقارنة مع مصانع على مسافة مماثلة:\n"
                     for f in similar_distance_emitters[:2]:
-                        analysis += f"✗ {f['name']} ({f['distance_km']:.1f} كم):\n"
-                        analysis += f"  - توافق الرياح: {f['confidence']:.0f}% مقابل {top['confidence']:.0f}%\n"
+                        analysis += f"✗ {f.get('name', 'Unknown')} ({f.get('distance_km', 0):.1f} كم):\n"
+                        analysis += f"  - توافق الرياح: {f.get('confidence', 0):.0f}% مقابل {top.get('confidence', 0):.0f}%\n"
                         analysis += f"  - الاتجاه: {f.get('bearing_to_hotspot', 0):.0f}° مقابل {top.get('bearing_to_hotspot', 0):.0f}°\n"
-                        if f['confidence'] < top['confidence']:
+                        if f.get('confidence', 0) < top.get('confidence', 0):
                             analysis += f"  - تم اختيار الأساسي بسبب توافق أفضل مع الرياح\n"
                         else:
                             analysis += f"  - مُدرج كمصدر بديل\n"
 
                 other_downwind = [f for f in all_emitters
-                                if not f['likely_upwind']
-                                and f['name'] != top['name']
+                                if not f.get('likely_upwind', False)
+                                and f.get('name') != top.get('name')
                                 and f not in similar_distance_emitters]
                 if other_downwind:
                     analysis += f"✗ {len(other_downwind)} مُنتِج(ون) آخر(ون): أبعد أو توافق ضعيف مع الرياح\n"
@@ -790,17 +790,17 @@ Use the visual map to provide insights beyond the numerical data."""
                 # Overall confidence
                 if wind_confidence < 50:
                     analysis += f"⚠️ الثقة الإجمالية: متوسطة-منخفضة (عدم يقين بيانات الرياح)\n\n"
-                elif top['likely_upwind'] and top['distance_km'] < 5:
+                elif top.get('likely_upwind', False) and top.get('distance_km', 0) < 5:
                     analysis += f"✓ الثقة الإجمالية: عالية (في اتجاه الرياح + قريب + تطابق الانبعاثات)\n\n"
                 else:
                     analysis += f"✓ الثقة الإجمالية: متوسطة (تم تأكيد تطابق الانبعاثات)\n\n"
 
-                analysis += f"التوصية: فحص فوري لضوابط انبعاثات {top['name']} والتغييرات التشغيلية الأخيرة."
+                analysis += f"التوصية: فحص فوري لضوابط انبعاثات {top.get('name', 'Unknown')} والتغييرات التشغيلية الأخيرة."
 
                 if len(candidates) > 1:
-                    analysis += f"\n\nالمصادر البديلة: {', '.join([f['name'] for f in candidates[1:3]])}"
+                    analysis += f"\n\nالمصادر البديلة: {', '.join([f.get('name', 'Unknown') for f in candidates[1:3]])}"
             else:
-                analysis = f"MOST LIKELY SOURCE: {top['name']} ({top['type']})\n"
+                analysis = f"MOST LIKELY SOURCE: {top.get('name', 'Unknown')} ({top.get('type', 'Unknown')})\n"
                 analysis += f"{'='*50}\n\n"
 
                 analysis += "JUSTIFICATION:\n"
@@ -820,47 +820,47 @@ Use the visual map to provide insights beyond the numerical data."""
                 analysis += f"  - Satellite observation time: {sat_time}\n"
                 analysis += f"  - Time offset: {time_offset:.1f} hours\n\n" if isinstance(time_offset, (int, float)) else f"  - Time offset: {time_offset}\n\n"
 
-                if top['likely_upwind']:
+                if top.get('likely_upwind', False):
                     analysis += f"✓ Wind Alignment: Factory IS upwind of hotspot\n"
                     analysis += f"  - Wind blows FROM factory TO pollution hotspot\n"
                     analysis += f"  - Bearing from factory: {top.get('bearing_to_hotspot', 0):.0f}°\n"
-                    analysis += f"  - Alignment confidence: {top['confidence']:.0f}%\n"
+                    analysis += f"  - Alignment confidence: {top.get('confidence', 0):.0f}%\n"
                 else:
                     analysis += f"⚠️ Wind Alignment: Factory NOT ideally upwind\n"
                     analysis += f"  - Bearing from factory: {top.get('bearing_to_hotspot', 0):.0f}°\n"
                     analysis += f"  - Wind bearing mismatch (selected for emission match + proximity)\n"
-                    analysis += f"  - Alignment confidence: {top['confidence']:.0f}%\n"
+                    analysis += f"  - Alignment confidence: {top.get('confidence', 0):.0f}%\n"
 
                 # 3. Distance
-                analysis += f"✓ Distance: {top['distance_km']:.1f} km from hotspot\n\n"
+                analysis += f"✓ Distance: {top.get('distance_km', 0):.1f} km from hotspot\n\n"
 
                 # Exclusion reasoning with details
                 if non_emitters:
                     analysis += f"EXCLUDED FACTORIES:\n"
                     for f in non_emitters[:2]:
-                        analysis += f"✗ {f['name']}: Does not produce {gas_name}\n"
+                        analysis += f"✗ {f.get('name', 'Unknown')}: Does not produce {gas_name}\n"
 
                 # Show comparison with other emitters at similar distances
                 similar_distance_emitters = [
                     f for f in all_emitters
-                    if f['name'] != top['name']
-                    and abs(f['distance_km'] - top['distance_km']) < 2.0  # Within 2km distance
+                    if f.get('name') != top.get('name')
+                    and abs(f.get('distance_km', 0) - top.get('distance_km', 0)) < 2.0  # Within 2km distance
                 ]
 
                 if similar_distance_emitters:
                     analysis += f"\nCOMPARISON WITH SIMILAR-DISTANCE FACTORIES:\n"
                     for f in similar_distance_emitters[:2]:
-                        analysis += f"✗ {f['name']} ({f['distance_km']:.1f} km):\n"
-                        analysis += f"  - Wind alignment: {f['confidence']:.0f}% vs {top['confidence']:.0f}%\n"
+                        analysis += f"✗ {f.get('name', 'Unknown')} ({f.get('distance_km', 0):.1f} km):\n"
+                        analysis += f"  - Wind alignment: {f.get('confidence', 0):.0f}% vs {top.get('confidence', 0):.0f}%\n"
                         analysis += f"  - Bearing: {f.get('bearing_to_hotspot', 0):.0f}° vs {top.get('bearing_to_hotspot', 0):.0f}°\n"
-                        if f['confidence'] < top['confidence']:
+                        if f.get('confidence', 0) < top.get('confidence', 0):
                             analysis += f"  - Selected primary due to better wind alignment\n"
                         else:
                             analysis += f"  - Listed as alternative source\n"
 
                 other_downwind = [f for f in all_emitters
-                                if not f['likely_upwind']
-                                and f['name'] != top['name']
+                                if not f.get('likely_upwind', False)
+                                and f.get('name') != top.get('name')
                                 and f not in similar_distance_emitters]
                 if other_downwind:
                     analysis += f"✗ {len(other_downwind)} other emitter(s): Farther or poor wind alignment\n"
@@ -870,15 +870,15 @@ Use the visual map to provide insights beyond the numerical data."""
                 # Overall confidence
                 if wind_confidence < 50:
                     analysis += f"⚠️ OVERALL CONFIDENCE: MEDIUM-LOW (wind data uncertainty)\n\n"
-                elif top['likely_upwind'] and top['distance_km'] < 5:
+                elif top.get('likely_upwind', False) and top.get('distance_km', 0) < 5:
                     analysis += f"✓ OVERALL CONFIDENCE: HIGH (upwind + close + emission match)\n\n"
                 else:
                     analysis += f"✓ OVERALL CONFIDENCE: MEDIUM (emission match confirmed)\n\n"
 
-                analysis += f"RECOMMENDATION: Immediate inspection of {top['name']} emission controls and recent operational changes."
+                analysis += f"RECOMMENDATION: Immediate inspection of {top.get('name', 'Unknown')} emission controls and recent operational changes."
 
                 if len(candidates) > 1:
-                    analysis += f"\n\nALTERNATIVE SOURCES: {', '.join([f['name'] for f in candidates[1:3]])}"
+                    analysis += f"\n\nALTERNATIVE SOURCES: {', '.join([f.get('name', 'Unknown') for f in candidates[1:3]])}"
         else:
             # No factories produce this gas
             if is_ar:
@@ -886,8 +886,8 @@ Use the visual map to provide insights beyond the numerical data."""
                 analysis += f"{'='*50}\n\n"
                 analysis += f"السبب: لا يُعرف أن أياً من المصانع القريبة ({len(factories)} مصنع) ينتج {gas_name}.\n\n"
                 analysis += f"الغاز المكتشف: {gas_name}\n"
-                analysis += f"المصانع القريبة: {', '.join([f['name'] for f in factories[:3]])}\n"
-                analysis += f"انبعاثاتها: {', '.join([', '.join(f['emissions']) for f in factories[:3]])}\n\n"
+                analysis += f"المصانع القريبة: {', '.join([f.get('name', 'Unknown') for f in factories[:3]])}\n"
+                analysis += f"انبعاثاتها: {', '.join([', '.join(f.get('emissions', [])) for f in factories[:3]])}\n\n"
                 analysis += f"التفسيرات المحتملة:\n"
                 analysis += f"- مصدر خارج المنطقة المراقبة\n"
                 analysis += f"- مصادر متنقلة (مركبات، سفن)\n"
@@ -898,8 +898,8 @@ Use the visual map to provide insights beyond the numerical data."""
                 analysis += f"{'='*50}\n\n"
                 analysis += f"REASON: None of the {len(factories)} nearby factories are known to produce {gas_name}.\n\n"
                 analysis += f"DETECTED GAS: {gas_name}\n"
-                analysis += f"NEARBY FACTORIES: {', '.join([f['name'] for f in factories[:3]])}\n"
-                analysis += f"THEIR EMISSIONS: {', '.join([', '.join(f['emissions']) for f in factories[:3]])}\n\n"
+                analysis += f"NEARBY FACTORIES: {', '.join([f.get('name', 'Unknown') for f in factories[:3]])}\n"
+                analysis += f"THEIR EMISSIONS: {', '.join([', '.join(f.get('emissions', [])) for f in factories[:3]])}\n\n"
                 analysis += f"POSSIBLE EXPLANATIONS:\n"
                 analysis += f"- Source outside monitored area\n"
                 analysis += f"- Mobile sources (vehicles, ships)\n"
