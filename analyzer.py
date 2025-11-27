@@ -93,8 +93,24 @@ class PollutionAnalyzer:
         # Find pixel with maximum value
         max_pixel = max(pixels, key=lambda p: p['value'])
         
+        # Format value for display using conversion factor
+        gas_config = config.GAS_PRODUCTS.get(gas_data['gas'], {})
+        conversion = gas_config.get('conversion_factor', 1)
+        display_unit = gas_config.get('display_unit', gas_data['unit'])
+        display_value = max_pixel['value'] * conversion
+
+        # Format based on magnitude
+        if display_value >= 1000:
+            formatted_value = f"{display_value:.0f}"
+        elif display_value >= 1:
+            formatted_value = f"{display_value:.1f}"
+        elif display_value >= 0.01:
+            formatted_value = f"{display_value:.2f}"
+        else:
+            formatted_value = f"{display_value:.4f}"
+
         logger.info(f"Hotspot found at ({max_pixel['lat']:.4f}, {max_pixel['lon']:.4f}) "
-                   f"with value {max_pixel['value']:.2f} {gas_data['unit']}")
+                   f"with value {formatted_value} {display_unit}")
         
         return {
             'lat': max_pixel['lat'],
@@ -119,9 +135,11 @@ class PollutionAnalyzer:
         threshold = threshold_config.get('column_threshold')
         critical = threshold_config.get('critical_threshold')
         threshold_unit = threshold_config.get('unit')
-        gas_unit = config.GAS_PRODUCTS[gas]['display_unit']
+        # Raw unit from satellite (mol/m² or ppb) - NOT display_unit
+        gas_unit = config.GAS_PRODUCTS[gas]['unit']
         unit_mismatch = False
 
+        # Both values and thresholds should be in raw units (mol/m² or ppb)
         if threshold_unit and gas_unit != threshold_unit:
             unit_mismatch = True
             logger.warning(
@@ -581,7 +599,6 @@ Use the visual map to provide insights beyond the numerical data."""
                         'temperature': 0.3,
                         'max_output_tokens': 800,  # More tokens for vision analysis
                         'top_p': 0.95,
-                        'media_resolution': 'high',  # High resolution for detailed spatial analysis
                     }
                 )
             else:
@@ -590,7 +607,6 @@ Use the visual map to provide insights beyond the numerical data."""
                     generation_config={
                         'temperature': 0.3,
                         'max_output_tokens': 800,
-                        'media_resolution': 'high',  # High resolution for detailed spatial analysis
                     }
                 )
 
