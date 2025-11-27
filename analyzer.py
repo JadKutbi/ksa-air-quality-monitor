@@ -679,7 +679,7 @@ Use the visual map to provide insights beyond the numerical data."""
 
                     analysis += f"تحليل المصانع القريبة:\n"
                     analysis += f"  - {len(candidates)} مصانع تنتج {gas_name}\n"
-                    analysis += f"  - أقرب مُنتِج: {top['name']} ({top['distance_km']:.1f} كم)\n"
+                    analysis += f"  - أقرب مُنتِج: {top.get('name', 'Unknown')} ({top.get('distance_km', 0):.1f} كم)\n"
                     analysis += f"  - ومع ذلك، هذا المصنع ليس في اتجاه الرياح (الثقة: {top_confidence:.0f}%)\n"
                     analysis += f"  - الرياح لا تهب من أي مصنع معروف ينتج {gas_name} نحو البؤرة\n\n"
 
@@ -694,7 +694,7 @@ Use the visual map to provide insights beyond the numerical data."""
 
                     analysis += f"مرجع - المُنتِجون القريبون (ليسوا في اتجاه الرياح):\n"
                     for i, factory in enumerate(candidates[:5], 1):
-                        analysis += f"  {i}. {factory['name']} - {factory['distance_km']:.1f} كم، ثقة {factory['confidence']:.0f}%\n"
+                        analysis += f"  {i}. {factory.get('name', 'Unknown')} - {factory.get('distance_km', 0):.1f} كم، ثقة {factory.get('confidence', 0):.0f}%\n"
                 else:
                     analysis = f"⚠️ NO CLEAR SOURCE IDENTIFIED\n"
                     analysis += f"{'='*50}\n\n"
@@ -712,7 +712,7 @@ Use the visual map to provide insights beyond the numerical data."""
 
                     analysis += f"NEARBY FACTORIES ANALYSIS:\n"
                     analysis += f"  - {len(candidates)} factories produce {gas_name}\n"
-                    analysis += f"  - Closest emitter: {top['name']} ({top['distance_km']:.1f} km)\n"
+                    analysis += f"  - Closest emitter: {top.get('name', 'Unknown')} ({top.get('distance_km', 0):.1f} km)\n"
                     analysis += f"  - However, this factory is NOT upwind (confidence: {top_confidence:.0f}%)\n"
                     analysis += f"  - Wind does not blow from any known {gas_name}-producing factory toward the hotspot\n\n"
 
@@ -728,13 +728,13 @@ Use the visual map to provide insights beyond the numerical data."""
                     # List all nearby emitters for reference
                     analysis += f"REFERENCE - NEARBY EMITTERS (not upwind):\n"
                     for i, factory in enumerate(candidates[:5], 1):
-                        analysis += f"  {i}. {factory['name']} - {factory['distance_km']:.1f} km, {factory['confidence']:.0f}% confidence\n"
+                        analysis += f"  {i}. {factory.get('name', 'Unknown')} - {factory.get('distance_km', 0):.1f} km, {factory.get('confidence', 0):.0f}% confidence\n"
 
                 return analysis
 
             # Build justified analysis (only if confidence is sufficient)
             if is_ar:
-                analysis = f"المصدر الأكثر احتمالاً: {top['name']} ({top['type']})\n"
+                analysis = f"المصدر الأكثر احتمالاً: {top.get('name', 'Unknown')} ({top.get('type', 'Unknown')})\n"
                 analysis += f"{'='*50}\n\n"
 
                 analysis += "التبرير:\n"
