@@ -2,6 +2,8 @@
 Violation Recorder - Records and manages violation history using Google Cloud Firestore
 Maps are stored as HTML content directly in Firestore documents
 Falls back to local storage if Firestore is not available
+
+Version: 2.1 - Added clear_all_violations method
 """
 
 import json
