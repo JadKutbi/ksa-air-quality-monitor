@@ -1,12 +1,13 @@
 """
 City Benchmark Analyzer Module
 
-Analyzes and ranks all Saudi cities by pollution levels, providing
-comparative analysis from least polluted to most polluted.
+Analyzes and ranks all Saudi cities by pollution levels using historical
+violation data from Firestore, providing comparative analysis from
+least polluted to most polluted.
 
 Features:
-    - Composite pollution index calculation
-    - Multi-gas weighted scoring
+    - Historical violation-based ranking
+    - Multi-gas violation frequency analysis
     - City-to-city ranking
     - Regional comparison statistics
     - Trend analysis across cities
@@ -14,7 +15,8 @@ Features:
 
 import numpy as np
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import defaultdict
 import logging
 import config
 
@@ -23,31 +25,23 @@ logger = logging.getLogger(__name__)
 
 
 class CityBenchmarkAnalyzer:
-    """Analyze and rank cities by pollution levels."""
+    """Analyze and rank cities by historical violation data."""
 
-    # Gas weights for composite pollution index
-    # Higher weight = more impact on overall pollution score
-    GAS_WEIGHTS = {
-        'NO2': 0.30,   # Nitrogen dioxide - major urban/industrial pollutant
-        'SO2': 0.25,   # Sulfur dioxide - industrial emissions indicator
-        'CO': 0.20,    # Carbon monoxide - combustion indicator
-        'HCHO': 0.15,  # Formaldehyde - petrochemical/VOC indicator
-        'CH4': 0.10,   # Methane - less directly harmful but climate relevant
-    }
-
-    # Ranking categories
+    # Ranking categories based on violation score
     RANK_CATEGORIES = {
-        'cleanest': {'min': 0, 'max': 25, 'label_en': 'Cleanest', 'label_ar': 'الأنظف', 'color': '#10b981'},
-        'clean': {'min': 25, 'max': 50, 'label_en': 'Clean', 'label_ar': 'نظيف', 'color': '#22c55e'},
-        'moderate': {'min': 50, 'max': 75, 'label_en': 'Moderate', 'label_ar': 'متوسط', 'color': '#f59e0b'},
-        'polluted': {'min': 75, 'max': 100, 'label_en': 'Polluted', 'label_ar': 'ملوث', 'color': '#ef4444'},
-        'heavily_polluted': {'min': 100, 'max': float('inf'), 'label_en': 'Heavily Polluted', 'label_ar': 'ملوث بشدة', 'color': '#dc2626'},
+        'cleanest': {'min': 0, 'max': 5, 'label_en': 'Cleanest', 'label_ar': 'الأنظف', 'color': '#10b981'},
+        'clean': {'min': 5, 'max': 15, 'label_en': 'Clean', 'label_ar': 'نظيف', 'color': '#22c55e'},
+        'moderate': {'min': 15, 'max': 30, 'label_en': 'Moderate', 'label_ar': 'متوسط', 'color': '#f59e0b'},
+        'polluted': {'min': 30, 'max': 50, 'label_en': 'Polluted', 'label_ar': 'ملوث', 'color': '#ef4444'},
+        'heavily_polluted': {'min': 50, 'max': float('inf'), 'label_en': 'Heavily Polluted', 'label_ar': 'ملوث بشدة', 'color': '#dc2626'},
     }
 
-    def __init__(self):
-        """Initialize the benchmark analyzer."""
+    def __init__(self, violation_recorder=None):
+        """Initialize the benchmark analyzer with violation recorder."""
         self.cities = list(config.CITIES.keys())
         self.regions = self._organize_by_region()
+        self.recorder = violation_recorder
+        self._cached_violations = None
 
     def _organize_by_region(self) -> Dict[str, List[str]]:
         """Organize cities by their geographic region."""
@@ -59,374 +53,349 @@ class CityBenchmarkAnalyzer:
             regions[region].append(city)
         return regions
 
-    def calculate_city_pollution_index(self, city_data: Dict) -> Dict:
+    def load_historical_data(self) -> Dict:
         """
-        Calculate a composite pollution index for a city.
-
-        The index is calculated as a weighted average of all gas measurements
-        normalized against their respective thresholds.
-
-        Args:
-            city_data: Dictionary of gas data for the city
-                       {gas: {'statistics': {'max': value, 'mean': value}, 'success': bool}}
+        Load all historical violations from Firestore.
+        This is fast - just one database query.
 
         Returns:
-            Dictionary with pollution index and breakdown
+            Dictionary with violations organized by city
         """
-        if not city_data:
+        if not self.recorder:
+            logger.warning("No violation recorder available")
+            return {}
+
+        try:
+            # Get all violations (single Firestore query)
+            all_violations = self.recorder.get_all_violations(limit=None)
+            logger.info(f"Loaded {len(all_violations)} historical violations")
+
+            # Organize by city
+            city_violations = defaultdict(list)
+            for v in all_violations:
+                city = v.get('city', 'Unknown')
+                city_violations[city].append(v)
+
+            self._cached_violations = dict(city_violations)
+            return self._cached_violations
+
+        except Exception as e:
+            logger.error(f"Error loading historical data: {e}")
+            return {}
+
+    def calculate_city_score(self, city: str, violations: List[Dict]) -> Dict:
+        """
+        Calculate pollution score for a city based on historical violations.
+
+        Scoring factors:
+        - Total violation count
+        - Critical vs moderate severity ratio
+        - Variety of gases violated
+        - Average exceedance percentage
+
+        Args:
+            city: City name
+            violations: List of violation records for this city
+
+        Returns:
+            Dictionary with score breakdown
+        """
+        if not violations:
             return {
-                'pollution_index': None,
-                'category': 'unknown',
-                'gas_scores': {},
-                'violations': [],
-                'violation_count': 0,
-                'data_quality': 0,
-                'gases_monitored': 0,
-                'success': False
+                'pollution_score': 0,
+                'category': 'cleanest',
+                'total_violations': 0,
+                'critical_count': 0,
+                'moderate_count': 0,
+                'gases_violated': [],
+                'avg_exceedance': 0,
+                'has_data': True  # City exists but has no violations = clean
             }
 
-        gas_scores = {}
-        weighted_sum = 0
-        total_weight = 0
-        violations = []
-        gases_with_data = 0
+        total = len(violations)
+        critical = sum(1 for v in violations if v.get('severity') == 'critical')
+        moderate = total - critical
 
-        for gas, weight in self.GAS_WEIGHTS.items():
-            data = city_data.get(gas, {})
-            if not data.get('success'):
-                continue
+        # Get unique gases violated
+        gases_violated = list(set(v.get('gas', 'Unknown') for v in violations))
 
-            gases_with_data += 1
-            threshold = config.GAS_THRESHOLDS.get(gas, {}).get('column_threshold', 1)
-            critical = config.GAS_THRESHOLDS.get(gas, {}).get('critical_threshold', threshold * 2)
+        # Calculate average exceedance percentage
+        exceedances = [v.get('percentage_over', 0) for v in violations if v.get('percentage_over')]
+        avg_exceedance = np.mean(exceedances) if exceedances else 0
 
-            max_val = data['statistics']['max']
-            mean_val = data['statistics']['mean']
+        # Calculate composite score
+        # - Base: violation count (weighted)
+        # - Critical violations count 2x
+        # - More gas variety = higher score
+        # - Higher exceedance = higher score
+        base_score = moderate + (critical * 2)
+        gas_multiplier = 1 + (len(gases_violated) - 1) * 0.1  # +10% per additional gas
+        exceedance_factor = 1 + (avg_exceedance / 100) * 0.5  # Up to +50% for high exceedance
 
-            # Calculate percentage of threshold (100% = at threshold)
-            threshold_percent = (max_val / threshold * 100) if threshold > 0 else 0
-
-            gas_scores[gas] = {
-                'max_value': max_val,
-                'mean_value': mean_val,
-                'threshold': threshold,
-                'threshold_percent': threshold_percent,
-                'weight': weight
-            }
-
-            weighted_sum += threshold_percent * weight
-            total_weight += weight
-
-            # Track violations
-            if max_val >= critical:
-                violations.append({'gas': gas, 'severity': 'critical', 'percent': threshold_percent})
-            elif max_val >= threshold:
-                violations.append({'gas': gas, 'severity': 'moderate', 'percent': threshold_percent})
-
-        if total_weight == 0:
-            return {
-                'pollution_index': None,
-                'category': 'unknown',
-                'gas_scores': {},
-                'violations': [],
-                'violation_count': 0,
-                'data_quality': 0,
-                'gases_monitored': 0,
-                'success': False
-            }
-
-        # Calculate composite index
-        pollution_index = weighted_sum / total_weight
+        pollution_score = base_score * gas_multiplier * exceedance_factor
 
         # Determine category
-        category = 'unknown'
+        category = 'heavily_polluted'
         for cat_name, cat_info in self.RANK_CATEGORIES.items():
-            if cat_info['min'] <= pollution_index < cat_info['max']:
+            if cat_info['min'] <= pollution_score < cat_info['max']:
                 category = cat_name
                 break
 
-        # Data quality score (percentage of gases with data)
-        data_quality = (gases_with_data / len(self.GAS_WEIGHTS)) * 100
-
         return {
-            'pollution_index': pollution_index,
+            'pollution_score': pollution_score,
             'category': category,
-            'gas_scores': gas_scores,
-            'violations': violations,
-            'violation_count': len(violations),
-            'data_quality': data_quality,
-            'gases_monitored': gases_with_data,
-            'success': True
+            'total_violations': total,
+            'critical_count': critical,
+            'moderate_count': moderate,
+            'gases_violated': gases_violated,
+            'avg_exceedance': avg_exceedance,
+            'has_data': True
         }
 
-    def rank_cities(self, all_cities_data: Dict[str, Dict]) -> List[Dict]:
+    def rank_cities(self, city_violations: Dict[str, List] = None) -> List[Dict]:
         """
-        Rank all cities from least polluted to most polluted.
+        Rank all cities from least polluted to most polluted based on historical data.
 
         Args:
-            all_cities_data: Dictionary mapping city names to their pollution data
-                            {city: {gas: {...}, ...}, ...}
+            city_violations: Dictionary mapping city names to their violations
+                            If None, uses cached data from load_historical_data()
 
         Returns:
-            List of cities sorted by pollution index (ascending = cleanest first)
+            List of cities sorted by pollution score (ascending = cleanest first)
         """
+        if city_violations is None:
+            city_violations = self._cached_violations or {}
+
         city_rankings = []
 
         for city in self.cities:
-            city_data = all_cities_data.get(city, {})
-            analysis = self.calculate_city_pollution_index(city_data)
-
+            violations = city_violations.get(city, [])
+            score_data = self.calculate_city_score(city, violations)
             city_info = config.CITIES.get(city, {})
 
             city_rankings.append({
                 'city': city,
                 'region': city_info.get('region', 'Unknown'),
-                'pollution_index': analysis['pollution_index'],
-                'category': analysis['category'],
-                'category_info': self.RANK_CATEGORIES.get(analysis['category'], {}),
-                'violations': analysis['violations'],
-                'violation_count': analysis['violation_count'],
-                'gas_scores': analysis['gas_scores'],
-                'data_quality': analysis['data_quality'],
-                'has_data': analysis['success']
+                'pollution_index': score_data['pollution_score'],
+                'category': score_data['category'],
+                'category_info': self.RANK_CATEGORIES.get(score_data['category'], {}),
+                'violation_count': score_data['total_violations'],
+                'critical_count': score_data['critical_count'],
+                'moderate_count': score_data['moderate_count'],
+                'gases_violated': score_data['gases_violated'],
+                'avg_exceedance': score_data['avg_exceedance'],
+                'has_data': True  # All cities have data (0 violations = clean)
             })
 
-        # Sort by pollution index (ascending) - cities without data go to end
-        city_rankings.sort(key=lambda x: (
-            0 if x['has_data'] else 1,  # Cities with data first
-            x['pollution_index'] if x['pollution_index'] is not None else float('inf')
-        ))
+        # Sort by pollution score (ascending) - cleanest first
+        city_rankings.sort(key=lambda x: x['pollution_index'])
 
         # Add rank numbers
-        rank = 1
         for i, city in enumerate(city_rankings):
-            if city['has_data']:
-                city['rank'] = rank
-                rank += 1
-            else:
-                city['rank'] = None
+            city['rank'] = i + 1
 
         return city_rankings
 
-    def get_regional_statistics(self, all_cities_data: Dict[str, Dict]) -> Dict[str, Dict]:
+    def get_regional_statistics(self, city_violations: Dict[str, List] = None) -> Dict[str, Dict]:
         """
         Calculate pollution statistics by region.
 
         Args:
-            all_cities_data: Dictionary mapping city names to their pollution data
+            city_violations: Dictionary mapping city names to their violations
 
         Returns:
             Dictionary of regional statistics
         """
+        if city_violations is None:
+            city_violations = self._cached_violations or {}
+
         regional_stats = {}
 
         for region, cities in self.regions.items():
-            region_indices = []
+            region_scores = []
             region_violations = 0
-            cities_with_data = 0
+            region_critical = 0
 
             for city in cities:
-                city_data = all_cities_data.get(city, {})
-                analysis = self.calculate_city_pollution_index(city_data)
+                violations = city_violations.get(city, [])
+                score_data = self.calculate_city_score(city, violations)
+                region_scores.append(score_data['pollution_score'])
+                region_violations += score_data['total_violations']
+                region_critical += score_data['critical_count']
 
-                if analysis['success'] and analysis['pollution_index'] is not None:
-                    region_indices.append(analysis['pollution_index'])
-                    region_violations += analysis['violation_count']
-                    cities_with_data += 1
-
-            if region_indices:
-                regional_stats[region] = {
-                    'avg_pollution_index': np.mean(region_indices),
-                    'min_pollution_index': np.min(region_indices),
-                    'max_pollution_index': np.max(region_indices),
-                    'std_pollution_index': np.std(region_indices) if len(region_indices) > 1 else 0,
-                    'total_violations': region_violations,
-                    'cities_count': len(cities),
-                    'cities_with_data': cities_with_data,
-                    'coverage_percent': (cities_with_data / len(cities)) * 100
-                }
-            else:
-                regional_stats[region] = {
-                    'avg_pollution_index': None,
-                    'min_pollution_index': None,
-                    'max_pollution_index': None,
-                    'std_pollution_index': None,
-                    'total_violations': 0,
-                    'cities_count': len(cities),
-                    'cities_with_data': 0,
-                    'coverage_percent': 0
-                }
+            regional_stats[region] = {
+                'avg_pollution_index': np.mean(region_scores) if region_scores else 0,
+                'min_pollution_index': np.min(region_scores) if region_scores else 0,
+                'max_pollution_index': np.max(region_scores) if region_scores else 0,
+                'total_violations': region_violations,
+                'critical_violations': region_critical,
+                'cities_count': len(cities),
+                'cities_with_violations': sum(1 for c in cities if city_violations.get(c)),
+            }
 
         return regional_stats
 
-    def get_gas_leaderboard(self, all_cities_data: Dict[str, Dict], gas: str) -> List[Dict]:
+    def get_gas_leaderboard(self, city_violations: Dict[str, List] = None, gas: str = None) -> List[Dict]:
         """
-        Get city rankings for a specific gas.
+        Get city rankings for a specific gas based on historical violations.
 
         Args:
-            all_cities_data: Dictionary mapping city names to their pollution data
+            city_violations: Dictionary mapping city names to their violations
             gas: Gas type to rank by
 
         Returns:
-            List of cities sorted by that gas's pollution level
+            List of cities sorted by that gas's violation count
         """
+        if city_violations is None:
+            city_violations = self._cached_violations or {}
+
         gas_rankings = []
-        threshold = config.GAS_THRESHOLDS.get(gas, {}).get('column_threshold', 1)
 
         for city in self.cities:
-            city_data = all_cities_data.get(city, {})
-            gas_data = city_data.get(gas, {})
+            violations = city_violations.get(city, [])
+            # Filter to specific gas
+            gas_violations = [v for v in violations if v.get('gas') == gas]
 
-            if gas_data.get('success'):
-                max_val = gas_data['statistics']['max']
-                mean_val = gas_data['statistics']['mean']
-                threshold_percent = (max_val / threshold * 100) if threshold > 0 else 0
+            total = len(gas_violations)
+            critical = sum(1 for v in gas_violations if v.get('severity') == 'critical')
+            exceedances = [v.get('percentage_over', 0) for v in gas_violations if v.get('percentage_over')]
+            avg_exceedance = np.mean(exceedances) if exceedances else 0
 
-                gas_rankings.append({
-                    'city': city,
-                    'region': config.CITIES.get(city, {}).get('region', 'Unknown'),
-                    'max_value': max_val,
-                    'mean_value': mean_val,
-                    'threshold_percent': threshold_percent,
-                    'is_violation': max_val >= threshold,
-                    'has_data': True
-                })
-            else:
-                gas_rankings.append({
-                    'city': city,
-                    'region': config.CITIES.get(city, {}).get('region', 'Unknown'),
-                    'max_value': None,
-                    'mean_value': None,
-                    'threshold_percent': None,
-                    'is_violation': False,
-                    'has_data': False
-                })
+            gas_rankings.append({
+                'city': city,
+                'region': config.CITIES.get(city, {}).get('region', 'Unknown'),
+                'violation_count': total,
+                'critical_count': critical,
+                'threshold_percent': avg_exceedance,  # Using avg exceedance as threshold %
+                'is_violation': total > 0,
+                'has_data': True
+            })
 
-        # Sort by max value (ascending = cleanest first)
-        gas_rankings.sort(key=lambda x: (
-            0 if x['has_data'] else 1,
-            x['max_value'] if x['max_value'] is not None else float('inf')
-        ))
+        # Sort by violation count (ascending = cleanest first)
+        gas_rankings.sort(key=lambda x: (x['violation_count'], x['critical_count']))
 
         # Add ranks
-        rank = 1
-        for city in gas_rankings:
-            if city['has_data']:
-                city['rank'] = rank
-                rank += 1
-            else:
-                city['rank'] = None
+        for i, city in enumerate(gas_rankings):
+            city['rank'] = i + 1
 
         return gas_rankings
 
-    def get_summary_statistics(self, all_cities_data: Dict[str, Dict]) -> Dict:
+    def get_summary_statistics(self, city_violations: Dict[str, List] = None) -> Dict:
         """
         Get overall summary statistics across all cities.
 
         Args:
-            all_cities_data: Dictionary mapping city names to their pollution data
+            city_violations: Dictionary mapping city names to their violations
 
         Returns:
             Summary statistics dictionary
         """
-        rankings = self.rank_cities(all_cities_data)
+        if city_violations is None:
+            city_violations = self._cached_violations or {}
 
-        cities_with_data = [c for c in rankings if c['has_data']]
+        rankings = self.rank_cities(city_violations)
 
-        if not cities_with_data:
-            return {
-                'total_cities': len(self.cities),
-                'cities_with_data': 0,
-                'cleanest_city': None,
-                'most_polluted_city': None,
-                'avg_pollution_index': None,
-                'total_violations': 0,
-                'cities_with_violations': 0,
-                'category_distribution': {}
-            }
-
-        indices = [c['pollution_index'] for c in cities_with_data if c['pollution_index'] is not None]
+        total_violations = sum(c['violation_count'] for c in rankings)
+        total_critical = sum(c['critical_count'] for c in rankings)
 
         # Category distribution
         category_counts = {}
-        for city in cities_with_data:
+        for city in rankings:
             cat = city['category']
             category_counts[cat] = category_counts.get(cat, 0) + 1
 
+        # Get date range from violations
+        all_violations = []
+        for violations in city_violations.values():
+            all_violations.extend(violations)
+
+        date_range = None
+        if all_violations:
+            timestamps = [v.get('timestamp', '') for v in all_violations if v.get('timestamp')]
+            if timestamps:
+                timestamps.sort()
+                date_range = {
+                    'oldest': timestamps[0][:10] if timestamps else None,
+                    'newest': timestamps[-1][:10] if timestamps else None
+                }
+
         return {
             'total_cities': len(self.cities),
-            'cities_with_data': len(cities_with_data),
-            'cleanest_city': cities_with_data[0] if cities_with_data else None,
-            'most_polluted_city': cities_with_data[-1] if cities_with_data else None,
-            'avg_pollution_index': np.mean(indices) if indices else None,
-            'median_pollution_index': np.median(indices) if indices else None,
-            'std_pollution_index': np.std(indices) if len(indices) > 1 else 0,
-            'total_violations': sum(c['violation_count'] for c in cities_with_data),
-            'cities_with_violations': sum(1 for c in cities_with_data if c['violation_count'] > 0),
-            'category_distribution': category_counts
+            'cities_with_data': len(self.cities),  # All cities have data
+            'cleanest_city': rankings[0] if rankings else None,
+            'most_polluted_city': rankings[-1] if rankings else None,
+            'avg_pollution_index': np.mean([c['pollution_index'] for c in rankings]),
+            'total_violations': total_violations,
+            'total_critical': total_critical,
+            'cities_with_violations': sum(1 for c in rankings if c['violation_count'] > 0),
+            'category_distribution': category_counts,
+            'date_range': date_range
         }
 
-    def compare_cities(self, city1_data: Dict, city2_data: Dict,
-                      city1_name: str, city2_name: str) -> Dict:
+    def compare_cities(self, city1_name: str, city2_name: str,
+                      city_violations: Dict[str, List] = None) -> Dict:
         """
-        Compare pollution levels between two cities.
+        Compare pollution levels between two cities based on historical data.
 
         Args:
-            city1_data: Pollution data for city 1
-            city2_data: Pollution data for city 2
             city1_name: Name of city 1
             city2_name: Name of city 2
+            city_violations: Dictionary mapping city names to their violations
 
         Returns:
             Comparison results
         """
-        analysis1 = self.calculate_city_pollution_index(city1_data)
-        analysis2 = self.calculate_city_pollution_index(city2_data)
+        if city_violations is None:
+            city_violations = self._cached_violations or {}
 
+        score1 = self.calculate_city_score(city1_name, city_violations.get(city1_name, []))
+        score2 = self.calculate_city_score(city2_name, city_violations.get(city2_name, []))
+
+        # Gas-by-gas comparison
         gas_comparisons = {}
-        for gas in self.GAS_WEIGHTS.keys():
-            score1 = analysis1['gas_scores'].get(gas, {})
-            score2 = analysis2['gas_scores'].get(gas, {})
+        gases = ['NO2', 'SO2', 'CO', 'HCHO', 'CH4']
 
-            if score1 and score2:
-                diff = score1.get('threshold_percent', 0) - score2.get('threshold_percent', 0)
-                gas_comparisons[gas] = {
-                    'city1_percent': score1.get('threshold_percent', 0),
-                    'city2_percent': score2.get('threshold_percent', 0),
-                    'difference': diff,
-                    'cleaner_city': city1_name if diff < 0 else city2_name if diff > 0 else 'equal'
-                }
+        for gas in gases:
+            v1 = [v for v in city_violations.get(city1_name, []) if v.get('gas') == gas]
+            v2 = [v for v in city_violations.get(city2_name, []) if v.get('gas') == gas]
+
+            count1 = len(v1)
+            count2 = len(v2)
+
+            gas_comparisons[gas] = {
+                'city1_count': count1,
+                'city2_count': count2,
+                'city1_percent': count1,  # Using count as display value
+                'city2_percent': count2,
+                'cleaner_city': city1_name if count1 < count2 else city2_name if count2 < count1 else 'equal'
+            }
 
         # Determine overall cleaner city
-        idx1 = analysis1['pollution_index']
-        idx2 = analysis2['pollution_index']
+        idx1 = score1['pollution_score']
+        idx2 = score2['pollution_score']
 
-        if idx1 is not None and idx2 is not None:
-            if idx1 < idx2:
-                overall_cleaner = city1_name
-                difference = ((idx2 - idx1) / idx2) * 100 if idx2 > 0 else 0
-            elif idx2 < idx1:
-                overall_cleaner = city2_name
-                difference = ((idx1 - idx2) / idx1) * 100 if idx1 > 0 else 0
-            else:
-                overall_cleaner = 'equal'
-                difference = 0
+        if idx1 < idx2:
+            overall_cleaner = city1_name
+            difference = ((idx2 - idx1) / idx2) * 100 if idx2 > 0 else 100
+        elif idx2 < idx1:
+            overall_cleaner = city2_name
+            difference = ((idx1 - idx2) / idx1) * 100 if idx1 > 0 else 100
         else:
-            overall_cleaner = 'insufficient_data'
-            difference = None
+            overall_cleaner = 'equal'
+            difference = 0
 
         return {
             'city1': {
                 'name': city1_name,
                 'pollution_index': idx1,
-                'category': analysis1['category'],
-                'violations': analysis1['violation_count']
+                'category': score1['category'],
+                'violations': score1['total_violations']
             },
             'city2': {
                 'name': city2_name,
                 'pollution_index': idx2,
-                'category': analysis2['category'],
-                'violations': analysis2['violation_count']
+                'category': score2['category'],
+                'violations': score2['total_violations']
             },
             'overall_cleaner': overall_cleaner,
             'difference_percent': difference,

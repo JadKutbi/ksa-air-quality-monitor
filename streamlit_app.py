@@ -1522,52 +1522,26 @@ def main():
         st.header(f"🏆 {t('cities_benchmark')}")
         st.markdown(f"*{t('benchmark_subtitle')}*")
 
-        # Initialize benchmark analyzer
-        benchmark_analyzer = CityBenchmarkAnalyzer()
         lang = st.session_state.get('language', 'en')
 
-        # Fetch benchmark data button
-        col_btn1, col_btn2, col_spacer = st.columns([2, 2, 4])
-        with col_btn1:
-            if st.button(f"🔄 {t('fetch_all_cities')}", type="primary"):
-                # Fetch data for all cities
-                all_cities_data = {}
-                progress_bar = st.progress(0)
-                status_text = st.empty()
+        # Initialize benchmark analyzer with violation recorder
+        _, _, _, _, recorder = initialize_services()
+        benchmark_analyzer = CityBenchmarkAnalyzer(violation_recorder=recorder)
 
-                cities_list = list(config.CITIES.keys())
-                for i, city_name in enumerate(cities_list):
-                    status_text.text(t('fetching_city_data').format(city=t(city_name)))
-                    try:
-                        city_data = fetch_pollution_data(city_name, days_back)
-                        all_cities_data[city_name] = city_data
-                    except Exception as e:
-                        st.warning(f"Error fetching data for {t(city_name)}: {e}")
-                        all_cities_data[city_name] = {}
-                    progress_bar.progress((i + 1) / len(cities_list))
+        # Load historical data (fast - single Firestore query)
+        with st.spinner(t('benchmark_loading')):
+            city_violations = benchmark_analyzer.load_historical_data()
 
-                # Store in session state
-                st.session_state.benchmark_data = all_cities_data
-                ksa_tz = pytz.timezone(config.TIMEZONE)
-                st.session_state.benchmark_last_update = datetime.now(ksa_tz).strftime("%Y-%m-%d %H:%M:%S KSA")
+        if city_violations or recorder:
+            # Calculate rankings from historical data
+            rankings = benchmark_analyzer.rank_cities(city_violations)
+            summary_stats = benchmark_analyzer.get_summary_statistics(city_violations)
+            regional_stats = benchmark_analyzer.get_regional_statistics(city_violations)
 
-                status_text.empty()
-                progress_bar.empty()
-                st.success(f"✅ {t('success')} - {len(all_cities_data)} {t('cities_monitored')}")
-                st.rerun()
-
-        with col_btn2:
-            if st.session_state.benchmark_last_update:
-                st.caption(f"📅 {t('last_benchmark_update')}: {st.session_state.benchmark_last_update}")
-
-        # Display benchmark data if available
-        if st.session_state.benchmark_data:
-            all_cities_data = st.session_state.benchmark_data
-
-            # Calculate rankings
-            rankings = benchmark_analyzer.rank_cities(all_cities_data)
-            summary_stats = benchmark_analyzer.get_summary_statistics(all_cities_data)
-            regional_stats = benchmark_analyzer.get_regional_statistics(all_cities_data)
+            # Show data range info
+            if summary_stats.get('date_range'):
+                date_range = summary_stats['date_range']
+                st.caption(f"📅 {t('historical_data')}: {date_range.get('oldest', '?')} → {date_range.get('newest', '?')} | {summary_stats['total_violations']} {t('violations')}")
 
             # Summary metrics
             create_benchmark_summary(summary_stats, lang)
@@ -1611,7 +1585,7 @@ def main():
                 )
 
                 if selected_gas:
-                    gas_rankings = benchmark_analyzer.get_gas_leaderboard(all_cities_data, selected_gas)
+                    gas_rankings = benchmark_analyzer.get_gas_leaderboard(city_violations, selected_gas)
                     create_gas_specific_ranking(gas_rankings, selected_gas, lang)
 
             with benchmark_tab4:
@@ -1638,12 +1612,7 @@ def main():
                     )
 
                 if city1 and city2 and city1 != city2:
-                    comparison = benchmark_analyzer.compare_cities(
-                        all_cities_data.get(city1, {}),
-                        all_cities_data.get(city2, {}),
-                        city1,
-                        city2
-                    )
+                    comparison = benchmark_analyzer.compare_cities(city1, city2, city_violations)
                     create_city_comparison(comparison, lang)
                 elif city1 == city2:
                     st.warning(f"⚠️ {t('select_different_cities')}")
@@ -1653,19 +1622,12 @@ def main():
             st.info(f"ℹ️ {t('benchmark_note')}")
 
         else:
-            # No benchmark data yet
+            # No violation data yet
             st.info(f"ℹ️ {t('no_benchmark_data')}")
+            st.markdown(f"""
+            ### {t('no_violations_recorded')}
 
-            # Show placeholder with info about what the benchmark will show
-            st.markdown("""
-            ### What you'll see after loading benchmark data:
-
-            - **City Rankings**: All 21 Saudi cities ranked from cleanest to most polluted
-            - **Regional Comparison**: Compare pollution levels across Western, Eastern, Central, Southern, and Northern regions
-            - **Gas-Specific Rankings**: See which cities have the highest/lowest levels for each gas
-            - **City Comparison**: Compare any two cities side-by-side
-
-            Click "Fetch Data for All Cities" above to load the benchmark data.
+            {t('tip_violations')}
             """)
 
     # Footer with enhanced information

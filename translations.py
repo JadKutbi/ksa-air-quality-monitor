@@ -450,6 +450,7 @@ TRANSLATIONS = {
         "select_different_cities": "Please select two different cities to compare",
         "insufficient_data_comparison": "Insufficient data for comparison",
         "equal_pollution": "Equal pollution levels",
+        "historical_data": "Historical data",
     },
 
     "ar": {
@@ -897,6 +898,7 @@ TRANSLATIONS = {
         "select_different_cities": "يرجى اختيار مدينتين مختلفتين للمقارنة",
         "insufficient_data_comparison": "بيانات غير كافية للمقارنة",
         "equal_pollution": "مستويات تلوث متساوية",
+        "historical_data": "البيانات التاريخية",
     }
 }
 
