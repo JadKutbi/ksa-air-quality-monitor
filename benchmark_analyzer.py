@@ -150,45 +150,48 @@ class CityBenchmarkAnalyzer:
         active_violations = 0
 
         # === LIVE SCORE (from cache) ===
+        # This is the current satellite measurement as % of threshold
+        # 100% = at threshold, >100% = violation
         if cache_data and cache_data.get('metrics'):
             metrics = cache_data['metrics']
 
             # Base: average threshold percentage (0-100+)
+            # This already reflects current pollution levels
             live_score = metrics.get('avg_threshold_percentage', 0)
 
-            # Bonus for current violations
+            # Track active violations for display (but don't add to score - avoid double counting)
             active_violations = metrics.get('active_violations', 0)
-            live_score += active_violations * 15
 
             # Data quality
             data_quality = metrics.get('data_completeness', 0)
 
         # === HISTORICAL SCORE (from violations) ===
+        # Adds penalty for past violations, capped to prevent dominating live data
         if historical_violations:
             violation_count = len(historical_violations)
             critical_count = sum(1 for v in historical_violations if v.get('severity') == 'critical')
             moderate_count = violation_count - critical_count
 
-            # Weighted violations: critical = 2x
-            weighted_violations = moderate_count + (critical_count * 2)
+            # Weighted violations: critical = 1.5x (reduced from 2x)
+            weighted_violations = moderate_count + (critical_count * 1.5)
 
-            # Average exceedance
+            # Average exceedance (how much over threshold)
             exceedances = [v.get('percentage_over', 0) for v in historical_violations if v.get('percentage_over')]
             avg_exceedance = np.mean(exceedances) if exceedances else 0
 
-            # Historical score components
-            historical_score = weighted_violations * 2 + avg_exceedance * 0.3
+            # Historical score: violations + exceedance bonus
+            # Capped at 50 to prevent dominating live score
+            historical_score = min(weighted_violations * 3 + avg_exceedance * 0.2, 50)
 
         # === COMPOSITE SCORE ===
-        if data_quality > 0.5:
-            # Good live data - weight it more
+        # Live score (current satellite data) is the primary metric
+        # Historical adds context but shouldn't overwhelm current readings
+        if data_quality > 0.3:
+            # Have usable live data - use weighted combination
             composite = live_score * self.WEIGHT_LIVE + historical_score * self.WEIGHT_HISTORICAL
-        elif data_quality > 0:
-            # Partial data - balance
-            composite = live_score * 0.5 + historical_score * 0.5
         elif historical_violations:
-            # No live data but have history
-            composite = historical_score
+            # No live data but have history - use historical with penalty
+            composite = historical_score + 30  # Base penalty for no current data
         else:
             # No data at all - neutral score
             composite = 50  # Middle of the road

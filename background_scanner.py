@@ -349,7 +349,11 @@ class RegionalScanner:
             # Calculate city metrics
             data_completeness = successful_gases / len(config.GAS_PRODUCTS)
             avg_threshold_pct = sum(threshold_percentages) / len(threshold_percentages) if threshold_percentages else 0
-            pollution_index = avg_threshold_pct + len(city_data['violations']) * 10
+
+            # Pollution index is just the average threshold percentage
+            # Don't add violation bonus here - that's handled in benchmark_analyzer
+            # to avoid double-counting when combining with historical data
+            pollution_index = avg_threshold_pct
 
             city_data['metrics'] = {
                 'pollution_index': round(pollution_index, 1),
