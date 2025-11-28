@@ -1524,11 +1524,29 @@ def main():
 
         lang = st.session_state.get('language', 'en')
 
-        # Initialize benchmark analyzer with violation recorder
-        _, _, _, _, recorder = initialize_services()
+        # Initialize services
+        fetcher, _, _, _, recorder = initialize_services()
         benchmark_analyzer = CityBenchmarkAnalyzer(violation_recorder=recorder)
 
-        # Load both cached satellite data and historical violations (fair system)
+        # Import efficient regional scanner
+        from background_scanner import RegionalScanner
+
+        # Check if we need to run a fresh scan
+        scanner = RegionalScanner(fetcher=fetcher, recorder=recorder)
+        stale_cities = scanner.get_stale_cities(max_age_hours=6)  # 6 hour freshness
+
+        # Auto-scan if data is stale (efficient: only 5 GEE calls for all cities)
+        if len(stale_cities) > 10:  # More than half cities stale
+            with st.spinner(t('auto_scanning')):
+                scan_results = scanner.scan_all_cities(days_back=7, auto_record_violations=True)
+                if scan_results.get('violations'):
+                    st.success(t('auto_scan_complete').format(
+                        cities=scan_results['cities_with_data'],
+                        violations=len(scan_results['violations']),
+                        time=scan_results['scan_time']
+                    ))
+
+        # Load data (from cache - fast)
         with st.spinner(t('benchmark_loading')):
             cache_data, historical_data = benchmark_analyzer.load_all_data()
 
@@ -1544,45 +1562,32 @@ def main():
             total_violations = sum(len(v) for v in historical_data.values())
             st.metric(t('total_violations'), total_violations)
 
-        # Background scan option
-        from background_scanner import BackgroundCityScanner
-
+        # Manual refresh option
         with st.expander(f"🔄 {t('refresh_cache')}", expanded=False):
             st.markdown(f"*{t('refresh_cache_desc')}*")
+            st.caption(t('efficient_scan_note'))
 
             col1, col2 = st.columns(2)
             with col1:
                 if st.button(f"🔄 {t('scan_all_cities')}", type="primary"):
-                    scanner = BackgroundCityScanner(db=recorder.db if recorder and recorder.use_firestore else None)
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-
-                    def update_progress(city_name, idx, total):
-                        progress_bar.progress(idx / total)
-                        status_text.text(t('scanning_city').format(city=t(city_name), current=idx, total=total))
-
                     with st.spinner(t('scanning_all_cities')):
-                        results = scanner.scan_all_cities(days_back=7, progress_callback=update_progress)
-
-                    progress_bar.empty()
-                    status_text.empty()
+                        results = scanner.scan_all_cities(days_back=7, auto_record_violations=True)
 
                     st.success(t('scan_complete').format(
-                        success=len(results['successful']),
-                        failed=len(results['failed']),
-                        duration=results['duration_minutes']
+                        success=results['cities_with_data'],
+                        failed=21 - results['cities_with_data'],
+                        duration=results['scan_time']
                     ))
 
-                    # Reload data
-                    cache_data, historical_data = benchmark_analyzer.load_all_data()
+                    if results.get('violations'):
+                        st.info(t('violations_auto_recorded').format(count=len(results['violations'])))
+
                     st.rerun()
 
             with col2:
-                # Show stale cities
-                scanner = BackgroundCityScanner(db=recorder.db if recorder and recorder.use_firestore else None)
-                stale_cities = scanner.get_stale_cities(max_age_hours=24)
-                if stale_cities:
-                    st.warning(t('stale_cities').format(count=len(stale_cities)))
+                stale_count = len(scanner.get_stale_cities(max_age_hours=6))
+                if stale_count > 0:
+                    st.warning(t('stale_cities').format(count=stale_count))
                 else:
                     st.success(t('all_cities_fresh'))
 

@@ -470,6 +470,10 @@ TRANSLATIONS = {
         "data_source_live": "Live satellite data",
         "data_source_historical": "Historical violations",
         "data_source_combined": "Combined score",
+        "auto_scanning": "Auto-scanning all cities (5 satellite calls)...",
+        "auto_scan_complete": "Scanned {cities} cities, found {violations} violations in {time}s",
+        "efficient_scan_note": "Efficient: Fetches all of Saudi Arabia in just 5 satellite calls (one per gas)",
+        "violations_auto_recorded": "{count} violations auto-recorded to database",
     },
 
     "ar": {
@@ -937,6 +941,10 @@ TRANSLATIONS = {
         "data_source_live": "بيانات أقمار صناعية حية",
         "data_source_historical": "مخالفات تاريخية",
         "data_source_combined": "درجة مجمعة",
+        "auto_scanning": "جاري الفحص التلقائي لجميع المدن (5 استدعاءات قمر صناعي)...",
+        "auto_scan_complete": "تم فحص {cities} مدينة، وُجدت {violations} مخالفات في {time} ثانية",
+        "efficient_scan_note": "كفاءة عالية: يجلب بيانات كل السعودية في 5 استدعاءات فقط (واحد لكل غاز)",
+        "violations_auto_recorded": "تم تسجيل {count} مخالفات تلقائياً في قاعدة البيانات",
     }
 }
 
