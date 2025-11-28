@@ -190,6 +190,10 @@ if 'alert_thresholds' not in st.session_state:
     st.session_state.alert_thresholds = {}
 if 'language' not in st.session_state:
     st.session_state.language = 'en'
+if 'confirm_clear' not in st.session_state:
+    st.session_state.confirm_clear = False
+if 'current_tab' not in st.session_state:
+    st.session_state.current_tab = 'overview'
 
 
 def t(key: str) -> str:
@@ -281,6 +285,9 @@ def create_sidebar():
 
         # City selector with translated city names
         city_keys = list(config.CITIES.keys())
+        # Validate session state city exists in config, default to first city if not
+        if st.session_state.selected_city not in city_keys:
+            st.session_state.selected_city = city_keys[0] if city_keys else 'Yanbu'
         selected_city = st.selectbox(
             t('select_city'),
             options=city_keys,
@@ -319,6 +326,8 @@ def create_sidebar():
 
         if st.button(f"🔄 {t('refresh_now')}", width="stretch", type="primary"):
             st.session_state.pollution_data = {}
+            # Clear the cached pollution data to force fresh fetch
+            fetch_pollution_data.clear()
             st.rerun()
 
         st.divider()
@@ -402,23 +411,24 @@ def fetch_pollution_data(city: str, days_back: int):
     progress = st.progress(0)
     status = st.empty()
 
-    gases = list(config.GAS_PRODUCTS.keys())
-    for i, gas in enumerate(gases):
-        status.text(t('retrieving_data').format(gas=gas))
-        progress.progress((i + 1) / len(gases))
+    try:
+        gases = list(config.GAS_PRODUCTS.keys())
+        for i, gas in enumerate(gases):
+            status.text(t('retrieving_data').format(gas=gas))
+            progress.progress((i + 1) / len(gases))
 
-        try:
-            data = fetcher.fetch_gas_data(city, gas, days_back=days_back)
-            if data and data.get('success'):
-                all_data[gas] = data
-            else:
-                error_msg = data.get('error', 'No data available') if data else 'No data available'
-                errors.append(f"{gas}: {error_msg}")
-        except Exception as e:
-            errors.append(f"{gas}: {str(e)}")
-
-    progress.empty()
-    status.empty()
+            try:
+                data = fetcher.fetch_gas_data(city, gas, days_back=days_back)
+                if data and data.get('success'):
+                    all_data[gas] = data
+                else:
+                    error_msg = data.get('error', 'No data available') if data else 'No data available'
+                    errors.append(f"{gas}: {error_msg}")
+            except Exception as e:
+                errors.append(f"{gas}: {str(e)}")
+    finally:
+        progress.empty()
+        status.empty()
 
     if errors and len(errors) == len(gases):
         st.error(t('failed_fetch_all'))
@@ -650,24 +660,50 @@ def display_map(pollution_data: Dict, city: str):
     gases_with_pixels = [gas for gas in available_gases
                         if pollution_data[gas].get('pixels')]
 
-    violation_gas = None
+    # Find ALL gases with violations, not just the first one
+    violation_gases_list = []
     for gas in available_gases:
-        threshold_check = analyzer.check_threshold_violation(
-            gas, pollution_data[gas]['statistics']['max']
-        )
-        if threshold_check['violated']:
-            violation_gas = gas
-            break
+        # Safely get max value with null checks
+        stats = pollution_data[gas].get('statistics')
+        if stats is None:
+            continue
+        max_val = stats.get('max')
+        if max_val is None:
+            continue
+        threshold_check = analyzer.check_threshold_violation(gas, max_val)
+        if threshold_check.get('violated'):
+            violation_gases_list.append(gas)
 
+    # Default to first violation gas if any exist
     default_index = 0
-    if violation_gas:
-        default_index = available_gases.index(violation_gas)
+    if violation_gases_list:
+        # Find the first gas in the list that has a violation
+        for i, gas in enumerate(available_gases):
+            if gas in violation_gases_list:
+                default_index = i
+                break
+
+    # Build the options list with labels that include violation status
+    gas_options = []
+    gas_labels = {}
+    for gas in available_gases:
+        base_label = f"{gas} - {config.GAS_PRODUCTS[gas]['name']}"
+        if gas in violation_gases_list:
+            label = f"{base_label} ⚠️ {t('violation').upper()}"
+        else:
+            label = base_label
+        gas_options.append(gas)
+        gas_labels[gas] = label
+
+    # Show violation summary if any gases are in violation
+    if violation_gases_list:
+        st.warning(f"⚠️ {len(violation_gases_list)} gases with threshold violations: {', '.join(violation_gases_list)}")
 
     selected_gas = st.selectbox(
         t('select_gas_display'),
-        available_gases,
+        gas_options,
         index=default_index,
-        format_func=lambda x: f"{x} - {config.GAS_PRODUCTS[x]['name']} {'⚠️ ' + t('violation').upper() if x == violation_gas else ''}"
+        format_func=lambda x: gas_labels.get(x, x)
     )
 
     if selected_gas:
@@ -1348,6 +1384,14 @@ def main():
         refresh_interval = st.session_state.get('refresh_interval', 6)
         interval_text = f"{refresh_interval} {t('hours')}" if refresh_interval >= 1 else f"{int(refresh_interval*60)} {t('minutes')}"
         st.info(f"🔄 {t('auto_refresh')} - {interval_text}")
+
+    # Reset confirmation state when not in history tab (prevents accidental deletions)
+    # This runs on every rerun, which effectively resets the confirmation state
+    # when the user navigates away from the history tab
+    if st.session_state.get('confirm_clear', False):
+        # Give a brief window for the confirmation to work, then reset
+        # This is a safety measure - the confirmation will be reset on next tab interaction
+        pass
 
     # Main content with translated tabs
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([

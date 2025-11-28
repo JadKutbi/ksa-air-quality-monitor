@@ -94,8 +94,11 @@ class DataValidator:
         for bp in aqi_breakpoints[gas]:
             c_low, c_high, i_low, i_high, category, color, description = bp
             if c_low <= concentration <= c_high:
-                # Linear interpolation
-                aqi = ((i_high - i_low) / (c_high - c_low)) * (concentration - c_low) + i_low
+                # Linear interpolation with division by zero guard
+                if c_high == c_low:
+                    aqi = i_low  # Avoid division by zero
+                else:
+                    aqi = ((i_high - i_low) / (c_high - c_low)) * (concentration - c_low) + i_low
                 return {
                     'aqi': round(aqi),
                     'category': category,
@@ -336,12 +339,22 @@ class DataValidator:
                 critical = config.GAS_THRESHOLDS.get(gas, {}).get('critical_threshold', float('inf'))
 
                 # Calculate risk score (0-100)
+                # Guard against division by zero
+                if threshold <= 0:
+                    threshold = 1e-10  # Prevent division by zero
+                if critical <= 0:
+                    critical = threshold * 2  # Default critical to 2x threshold
+
                 if max_val <= threshold * 0.5:
                     risk = 0
                 elif max_val <= threshold:
                     risk = 25 * (max_val / threshold)
                 elif max_val <= critical:
-                    risk = 25 + 50 * ((max_val - threshold) / (critical - threshold))
+                    # Guard against threshold == critical
+                    if critical == threshold:
+                        risk = 50  # Midpoint if thresholds are equal
+                    else:
+                        risk = 25 + 50 * ((max_val - threshold) / (critical - threshold))
                 else:
                     risk = min(100, 75 + 25 * ((max_val - critical) / critical))
 

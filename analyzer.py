@@ -176,7 +176,15 @@ class PollutionAnalyzer:
         
         if threshold is None:
             return {'violated': False, 'severity': 'unknown'}
-        
+
+        # Handle None or invalid critical threshold - default to 2x threshold
+        if critical is None:
+            critical = threshold * 2
+
+        # Handle None or invalid value
+        if value is None:
+            return {'violated': False, 'severity': 'unknown'}
+
         if value >= critical:
             severity = 'critical'
             violated = True

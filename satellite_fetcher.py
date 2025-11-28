@@ -358,6 +358,15 @@ class SatelliteDataFetcher:
         The function returns a confidence score showing how well the wind data
         matches the satellite timing.
         """
+        # Check if wind fetcher is available
+        if not self.enhanced_wind_fetcher:
+            return {
+                'success': False,
+                'error': 'Wind fetcher not available',
+                'confidence': 0,
+                'warning': 'Wind data unavailable - factory attribution unreliable'
+            }
+
         if target_time is None:
             target_time = datetime.now(pytz.UTC)
         else:

@@ -193,6 +193,7 @@ class ViolationRecorder:
             satellite_timestamp = violation_data.get('timestamp_ksa', 'N/A')
 
             # Prepare record (Firestore-compatible - no complex objects)
+            # Use .get() with defaults to prevent KeyError
             record = {
                 'id': full_id,
                 'timestamp': now.isoformat(),  # When saved
@@ -200,12 +201,12 @@ class ViolationRecorder:
                 'satellite_timestamp': satellite_timestamp,  # Satellite observation time (unique key)
                 'city': city,
                 'gas': gas,
-                'gas_name': violation_data['gas_name'],
-                'max_value': float(violation_data['max_value']),
-                'threshold': float(violation_data['threshold']),
-                'unit': violation_data['unit'],
-                'severity': violation_data['severity'],
-                'percentage_over': float(violation_data['percentage_over']),
+                'gas_name': violation_data.get('gas_name', gas),
+                'max_value': float(violation_data.get('max_value', 0)),
+                'threshold': float(violation_data.get('threshold', 0)),
+                'unit': violation_data.get('unit', ''),
+                'severity': violation_data.get('severity', 'Unknown'),
+                'percentage_over': float(violation_data.get('percentage_over', 0)),
                 'ai_analysis': analysis,
             }
 

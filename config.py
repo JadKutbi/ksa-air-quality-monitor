@@ -273,12 +273,14 @@ GAS_THRESHOLDS = {
     },
     "CH4": {
         # Typical range: 1600 - 2000 ppb (400 ppb span)
-        "column_threshold": 1700,        # ppb - elevated (25% into range)
-        "critical_threshold": 1800,      # ppb - high (50% into range)
-        "extreme_threshold": 1900,       # ppb - severe (75% into range)
+        # Note: Global atmospheric CH4 background is ~1900 ppb (2024) and rising ~10 ppb/year
+        # Thresholds adjusted to detect significant anomalies above current background
+        "column_threshold": 1920,        # ppb - elevated (1% above current background)
+        "critical_threshold": 1950,      # ppb - high (2.5% above current background)
+        "extreme_threshold": 2000,       # ppb - severe (5% above current background)
         "unit": "ppb",
         "display_unit": "ppb",
-        "source": "Sentinel-5P TROPOMI typical ranges"
+        "source": "Sentinel-5P TROPOMI typical ranges (adjusted for 2024 background)"
     }
 }
 

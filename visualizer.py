@@ -100,7 +100,7 @@ class MapVisualizer:
                     else:
                         normalized = 0.8 + 0.2 * min(1.0, (p['value'] - critical_threshold) / critical_threshold)
                     heat_data_normalized.append([p['lat'], p['lon'], min(1.0, normalized)])
-                logger.info(f"WHO threshold normalization applied")
+                logger.info(f"Satellite-based threshold normalization applied")
             else:
                 values = [p['value'] for p in pixels]
                 percentile_95 = np.percentile(values, 95) if len(values) > 1 else max(values)

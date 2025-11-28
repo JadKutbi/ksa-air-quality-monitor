@@ -416,7 +416,8 @@ class EnhancedWindFetcher:
                             'observation_time': observation_time,
                             'direction_cardinal': self._degrees_to_cardinal(direction)
                         }
-            except:
+            except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+                logger.debug(f"METAR endpoint failed: {e}")
                 continue
 
         return None
@@ -677,8 +678,8 @@ class EnhancedWindFetcher:
                                 'observation_time': target_time.replace(minute=0, second=0),
                                 'direction_cardinal': self._degrees_to_cardinal(hour_data.get('winddir', 0))
                             }
-        except:
-            pass
+        except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+            logger.debug(f"Visual Crossing API failed: {e}")
 
         return None
 
