@@ -487,6 +487,23 @@ class ViolationRecorder:
                 logger.error(f"Failed to delete violation {violation_id}: {e}")
                 return False
 
+    def clear_all_violations(self) -> int:
+        """
+        Delete ALL violation records from the database.
+
+        Returns:
+            Number of records deleted
+        """
+        records = self.get_all_violations(limit=None)
+        deleted_count = 0
+
+        for record in records:
+            if self.delete_violation(record['id']):
+                deleted_count += 1
+
+        logger.info(f"Cleared {deleted_count} violation records")
+        return deleted_count
+
     def get_statistics(self, city: Optional[str] = None) -> Dict:
         """Get violation statistics"""
         records = self.get_all_violations(city=city)

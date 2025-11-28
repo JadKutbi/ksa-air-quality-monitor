@@ -1567,7 +1567,7 @@ def main():
             st.markdown(f"*{t('refresh_cache_desc')}*")
             st.caption(t('efficient_scan_note'))
 
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 if st.button(f"🔄 {t('scan_all_cities')}", type="primary"):
                     with st.spinner(t('scanning_all_cities')):
@@ -1590,6 +1590,23 @@ def main():
                     st.warning(t('stale_cities').format(count=stale_count))
                 else:
                     st.success(t('all_cities_fresh'))
+
+            with col3:
+                # Clear all history button with confirmation
+                if 'confirm_clear_all' not in st.session_state:
+                    st.session_state.confirm_clear_all = False
+
+                if st.button(f"🗑️ {t('clear_all_history')}", type="secondary"):
+                    if st.session_state.confirm_clear_all:
+                        # Actually clear
+                        if recorder:
+                            deleted = recorder.clear_all_violations()
+                            st.success(t('all_history_cleared').format(count=deleted))
+                            st.session_state.confirm_clear_all = False
+                            st.rerun()
+                    else:
+                        st.session_state.confirm_clear_all = True
+                        st.warning(t('click_to_confirm_clear_all'))
 
         st.divider()
 

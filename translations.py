@@ -474,6 +474,9 @@ TRANSLATIONS = {
         "auto_scan_complete": "Scanned {cities} cities, found {violations} violations in {time}s",
         "efficient_scan_note": "Efficient: Fetches all of Saudi Arabia in just 5 satellite calls (one per gas)",
         "violations_auto_recorded": "{count} violations auto-recorded to database",
+        "clear_all_history": "Clear All History",
+        "click_to_confirm_clear_all": "Click again to confirm deletion of ALL violation records",
+        "all_history_cleared": "Cleared {count} violation records from all cities",
     },
 
     "ar": {
@@ -945,6 +948,9 @@ TRANSLATIONS = {
         "auto_scan_complete": "تم فحص {cities} مدينة، وُجدت {violations} مخالفات في {time} ثانية",
         "efficient_scan_note": "كفاءة عالية: يجلب بيانات كل السعودية في 5 استدعاءات فقط (واحد لكل غاز)",
         "violations_auto_recorded": "تم تسجيل {count} مخالفات تلقائياً في قاعدة البيانات",
+        "clear_all_history": "مسح كل السجل",
+        "click_to_confirm_clear_all": "انقر مرة أخرى لتأكيد حذف جميع سجلات المخالفات",
+        "all_history_cleared": "تم مسح {count} سجل مخالفات من جميع المدن",
     }
 }
 
