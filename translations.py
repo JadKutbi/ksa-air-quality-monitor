@@ -451,6 +451,25 @@ TRANSLATIONS = {
         "insufficient_data_comparison": "Insufficient data for comparison",
         "equal_pollution": "Equal pollution levels",
         "historical_data": "Historical data",
+
+        # Fair benchmark translations
+        "live_data_cities": "Cities with Live Data",
+        "historical_data_cities": "Cities with History",
+        "refresh_cache": "Refresh City Cache",
+        "refresh_cache_desc": "Scan all cities to update the pollution cache. This ensures fair rankings for all cities.",
+        "scan_all_cities": "Scan All Cities",
+        "scanning_city": "Scanning {city}... ({current}/{total})",
+        "scanning_all_cities": "Scanning all 21 cities for latest satellite data...",
+        "scan_complete": "Scan complete! {success} cities updated, {failed} failed. Duration: {duration} min",
+        "stale_cities": "{count} cities need refresh (>24h old)",
+        "all_cities_fresh": "All cities have recent data",
+        "benchmark_note_fair": "Rankings combine cached satellite data (70%) with historical violations (30%) for fair comparison. Cities without monitoring history receive neutral scores.",
+        "confidence_high": "High confidence",
+        "confidence_medium": "Medium confidence",
+        "confidence_low": "Low confidence",
+        "data_source_live": "Live satellite data",
+        "data_source_historical": "Historical violations",
+        "data_source_combined": "Combined score",
     },
 
     "ar": {
@@ -899,6 +918,25 @@ TRANSLATIONS = {
         "insufficient_data_comparison": "بيانات غير كافية للمقارنة",
         "equal_pollution": "مستويات تلوث متساوية",
         "historical_data": "البيانات التاريخية",
+
+        # Fair benchmark translations
+        "live_data_cities": "مدن ببيانات حية",
+        "historical_data_cities": "مدن بسجل تاريخي",
+        "refresh_cache": "تحديث ذاكرة التخزين",
+        "refresh_cache_desc": "فحص جميع المدن لتحديث ذاكرة التلوث. هذا يضمن ترتيباً عادلاً لجميع المدن.",
+        "scan_all_cities": "فحص جميع المدن",
+        "scanning_city": "جاري فحص {city}... ({current}/{total})",
+        "scanning_all_cities": "جاري فحص جميع المدن الـ 21 للحصول على أحدث بيانات الأقمار الصناعية...",
+        "scan_complete": "اكتمل الفحص! تم تحديث {success} مدينة، فشل {failed}. المدة: {duration} دقيقة",
+        "stale_cities": "{count} مدينة تحتاج تحديث (أكثر من 24 ساعة)",
+        "all_cities_fresh": "جميع المدن لديها بيانات حديثة",
+        "benchmark_note_fair": "يجمع الترتيب بين بيانات الأقمار الصناعية المخزنة (70%) والمخالفات التاريخية (30%) لمقارنة عادلة. المدن بدون سجل مراقبة تحصل على درجات محايدة.",
+        "confidence_high": "ثقة عالية",
+        "confidence_medium": "ثقة متوسطة",
+        "confidence_low": "ثقة منخفضة",
+        "data_source_live": "بيانات أقمار صناعية حية",
+        "data_source_historical": "مخالفات تاريخية",
+        "data_source_combined": "درجة مجمعة",
     }
 }
 

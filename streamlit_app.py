@@ -1528,107 +1528,148 @@ def main():
         _, _, _, _, recorder = initialize_services()
         benchmark_analyzer = CityBenchmarkAnalyzer(violation_recorder=recorder)
 
-        # Load historical data (fast - single Firestore query)
+        # Load both cached satellite data and historical violations (fair system)
         with st.spinner(t('benchmark_loading')):
-            city_violations = benchmark_analyzer.load_historical_data()
+            cache_data, historical_data = benchmark_analyzer.load_all_data()
 
-        if city_violations or recorder:
-            # Calculate rankings from historical data
-            rankings = benchmark_analyzer.rank_cities(city_violations)
-            summary_stats = benchmark_analyzer.get_summary_statistics(city_violations)
-            regional_stats = benchmark_analyzer.get_regional_statistics(city_violations)
+        # Show data source info
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            cities_with_cache = len([c for c in cache_data if cache_data.get(c, {}).get('metrics')])
+            st.metric(t('live_data_cities'), f"{cities_with_cache}/21")
+        with col2:
+            cities_with_history = len(historical_data)
+            st.metric(t('historical_data_cities'), cities_with_history)
+        with col3:
+            total_violations = sum(len(v) for v in historical_data.values())
+            st.metric(t('total_violations'), total_violations)
 
-            # Show data range info
-            if summary_stats.get('date_range'):
-                date_range = summary_stats['date_range']
-                st.caption(f"📅 {t('historical_data')}: {date_range.get('oldest', '?')} → {date_range.get('newest', '?')} | {summary_stats['total_violations']} {t('violations')}")
+        # Background scan option
+        from background_scanner import BackgroundCityScanner
 
-            # Summary metrics
-            create_benchmark_summary(summary_stats, lang)
+        with st.expander(f"🔄 {t('refresh_cache')}", expanded=False):
+            st.markdown(f"*{t('refresh_cache_desc')}*")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"🔄 {t('scan_all_cities')}", type="primary"):
+                    scanner = BackgroundCityScanner(db=recorder.db if recorder and recorder.use_firestore else None)
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+
+                    def update_progress(city_name, idx, total):
+                        progress_bar.progress(idx / total)
+                        status_text.text(t('scanning_city').format(city=t(city_name), current=idx, total=total))
+
+                    with st.spinner(t('scanning_all_cities')):
+                        results = scanner.scan_all_cities(days_back=7, progress_callback=update_progress)
+
+                    progress_bar.empty()
+                    status_text.empty()
+
+                    st.success(t('scan_complete').format(
+                        success=len(results['successful']),
+                        failed=len(results['failed']),
+                        duration=results['duration_minutes']
+                    ))
+
+                    # Reload data
+                    cache_data, historical_data = benchmark_analyzer.load_all_data()
+                    st.rerun()
+
+            with col2:
+                # Show stale cities
+                scanner = BackgroundCityScanner(db=recorder.db if recorder and recorder.use_firestore else None)
+                stale_cities = scanner.get_stale_cities(max_age_hours=24)
+                if stale_cities:
+                    st.warning(t('stale_cities').format(count=len(stale_cities)))
+                else:
+                    st.success(t('all_cities_fresh'))
+
+        st.divider()
+
+        # Calculate fair rankings
+        rankings = benchmark_analyzer.rank_cities(cache_data, historical_data)
+        summary_stats = benchmark_analyzer.get_summary_statistics(cache_data, historical_data)
+        regional_stats = benchmark_analyzer.get_regional_statistics(cache_data, historical_data)
+
+        # Summary metrics
+        create_benchmark_summary(summary_stats, lang)
+
+        st.divider()
+
+        # Sub-tabs for different views
+        benchmark_tab1, benchmark_tab2, benchmark_tab3, benchmark_tab4 = st.tabs([
+            f"📋 {t('city_rankings_table')}",
+            f"🗺️ {t('regional_comparison')}",
+            f"🧪 {t('gas_breakdown')}",
+            f"⚖️ {t('compare_cities')}"
+        ])
+
+        with benchmark_tab1:
+            # Rankings table
+            create_city_rankings_table(rankings, lang)
 
             st.divider()
 
-            # Sub-tabs for different views
-            benchmark_tab1, benchmark_tab2, benchmark_tab3, benchmark_tab4 = st.tabs([
-                f"📋 {t('city_rankings_table')}",
-                f"🗺️ {t('regional_comparison')}",
-                f"🧪 {t('gas_breakdown')}",
-                f"⚖️ {t('compare_cities')}"
-            ])
+            # Rankings chart
+            create_city_rankings_chart(rankings, lang)
 
-            with benchmark_tab1:
-                # Rankings table
-                create_city_rankings_table(rankings, lang)
+            # Category distribution
+            col1, col2 = st.columns(2)
+            with col1:
+                create_category_distribution(rankings, lang)
 
-                st.divider()
+        with benchmark_tab2:
+            # Regional comparison
+            create_regional_comparison(regional_stats, lang)
 
-                # Rankings chart
-                create_city_rankings_chart(rankings, lang)
+        with benchmark_tab3:
+            # Gas-specific rankings
+            st.subheader(f"🧪 {t('gas_breakdown')}")
 
-                # Category distribution
-                col1, col2 = st.columns(2)
-                with col1:
-                    create_category_distribution(rankings, lang)
+            selected_gas = st.selectbox(
+                t('select_gas_ranking'),
+                options=list(config.GAS_PRODUCTS.keys()),
+                format_func=lambda x: t(x)
+            )
 
-            with benchmark_tab2:
-                # Regional comparison
-                create_regional_comparison(regional_stats, lang)
+            if selected_gas:
+                gas_rankings = benchmark_analyzer.get_gas_leaderboard(cache_data, selected_gas)
+                create_gas_specific_ranking(gas_rankings, selected_gas, lang)
 
-            with benchmark_tab3:
-                # Gas-specific rankings
-                st.subheader(f"🧪 {t('gas_breakdown')}")
+        with benchmark_tab4:
+            # City comparison
+            st.subheader(f"⚖️ {t('compare_cities')}")
 
-                selected_gas = st.selectbox(
-                    t('select_gas_ranking'),
-                    options=list(config.GAS_PRODUCTS.keys()),
-                    format_func=lambda x: t(x)
+            col1, col2 = st.columns(2)
+            cities_list = list(config.CITIES.keys())
+
+            with col1:
+                city1 = st.selectbox(
+                    t('select_city_1'),
+                    options=cities_list,
+                    format_func=lambda x: t(x),
+                    index=0
                 )
 
-                if selected_gas:
-                    gas_rankings = benchmark_analyzer.get_gas_leaderboard(city_violations, selected_gas)
-                    create_gas_specific_ranking(gas_rankings, selected_gas, lang)
+            with col2:
+                city2 = st.selectbox(
+                    t('select_city_2'),
+                    options=cities_list,
+                    format_func=lambda x: t(x),
+                    index=min(1, len(cities_list)-1)
+                )
 
-            with benchmark_tab4:
-                # City comparison
-                st.subheader(f"⚖️ {t('compare_cities')}")
+            if city1 and city2 and city1 != city2:
+                comparison = benchmark_analyzer.compare_cities(city1, city2, cache_data, historical_data)
+                create_city_comparison(comparison, lang)
+            elif city1 == city2:
+                st.warning(f"⚠️ {t('select_different_cities')}")
 
-                col1, col2 = st.columns(2)
-                cities_list = list(config.CITIES.keys())
-
-                with col1:
-                    city1 = st.selectbox(
-                        t('select_city_1'),
-                        options=cities_list,
-                        format_func=lambda x: t(x),
-                        index=0
-                    )
-
-                with col2:
-                    city2 = st.selectbox(
-                        t('select_city_2'),
-                        options=cities_list,
-                        format_func=lambda x: t(x),
-                        index=min(1, len(cities_list)-1)
-                    )
-
-                if city1 and city2 and city1 != city2:
-                    comparison = benchmark_analyzer.compare_cities(city1, city2, city_violations)
-                    create_city_comparison(comparison, lang)
-                elif city1 == city2:
-                    st.warning(f"⚠️ {t('select_different_cities')}")
-
-            # Note about benchmark methodology
-            st.divider()
-            st.info(f"ℹ️ {t('benchmark_note')}")
-
-        else:
-            # No violation data yet
-            st.info(f"ℹ️ {t('no_benchmark_data')}")
-            st.markdown(f"""
-            ### {t('no_violations_recorded')}
-
-            {t('tip_violations')}
-            """)
+        # Note about fair benchmark methodology
+        st.divider()
+        st.info(f"ℹ️ {t('benchmark_note_fair')}")
 
     # Footer with enhanced information
     st.divider()
