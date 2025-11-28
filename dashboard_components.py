@@ -403,15 +403,17 @@ def create_city_rankings_table(rankings: List[Dict], lang: str = 'en') -> None:
     table_data = []
     for city_data in rankings:
         if city_data['has_data']:
-            # Show active violations (from current scan) - more relevant than historical
+            # Show total violations (current + historical)
             active = city_data.get('active_violations', 0)
+            historical = city_data.get('violation_count', 0)
+            total_violations = active + historical
             row = {
                 get_text('rank', lang): city_data['rank'],
                 get_text('city', lang): get_text(city_data['city'], lang),
                 get_text('region', lang): get_text(city_data['region'], lang),
                 get_text('pollution_index', lang): f"{city_data['live_score']:.1f}%",  # Show raw satellite %
                 get_text('category', lang): get_category_translation(city_data['category'], lang),
-                get_text('active_violations', lang): active,
+                get_text('violations_count', lang): total_violations,
             }
             table_data.append(row)
 
