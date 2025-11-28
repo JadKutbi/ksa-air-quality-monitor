@@ -90,14 +90,18 @@ class RegionalScanner:
 
     def fetch_regional_gas_data(self, gas: str, days_back: int = 7) -> Optional[ee.Image]:
         """
-        Fetch gas data for ALL of Saudi Arabia in a single GEE call.
+        Fetch gas data for ALL of Saudi Arabia using mosaic for best coverage.
+
+        Uses mosaic approach: combines multiple images to get the most recent
+        valid pixel for each location. This ensures we don't miss data for
+        cities that had cloud cover in the most recent image.
 
         Args:
             gas: Gas type (NO2, SO2, CO, HCHO, CH4)
             days_back: Days to search for data
 
         Returns:
-            Earth Engine Image covering Saudi Arabia, or None if no data
+            Earth Engine Image (mosaic) covering Saudi Arabia, or None if no data
         """
         if not self._ensure_ee():
             return None
@@ -135,35 +139,29 @@ class RegionalScanner:
                 logger.warning(f"No {gas} data found for Saudi Arabia")
                 return None
 
-            # Get the most recent image with valid data
+            # MOSAIC APPROACH: Sort by time (newest first) and create mosaic
+            # This takes the most recent valid pixel for each location
+            # Older images fill in gaps where newer images have clouds/no data
             sorted_collection = collection.sort('system:time_start', False)
-            image_list = sorted_collection.toList(min(count, 10))
 
-            for i in range(min(count, 10)):
-                try:
-                    image = ee.Image(image_list.get(i))
-                    # Quick validation - check if image has data
-                    test_stats = image.reduceRegion(
-                        reducer=ee.Reducer.mean(),
-                        geometry=aoi,
-                        scale=10000,
-                        maxPixels=1e9,
-                        bestEffort=True
-                    ).getInfo()
+            # Create mosaic - most recent pixels on top, older fill gaps
+            mosaic = sorted_collection.mosaic()
 
-                    if test_stats.get(gas_config["band"]) is not None:
-                        # Get timestamp
-                        img_info = image.getInfo()
-                        timestamp_ms = img_info['properties']['system:time_start']
-                        timestamp_utc = datetime.fromtimestamp(timestamp_ms / 1000, tz=pytz.UTC)
-                        logger.info(f"Found valid {gas} data from {timestamp_utc.strftime('%Y-%m-%d %H:%M UTC')}")
-                        return image
-                except Exception as e:
-                    logger.debug(f"Image {i} failed validation: {e}")
-                    continue
+            # Validate mosaic has data
+            test_stats = mosaic.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=aoi,
+                scale=10000,
+                maxPixels=1e9,
+                bestEffort=True
+            ).getInfo()
 
-            logger.warning(f"No valid {gas} images found")
-            return None
+            if test_stats.get(gas_config["band"]) is not None:
+                logger.info(f"Created {gas} mosaic from {count} images (last {days_back} days)")
+                return mosaic
+            else:
+                logger.warning(f"No valid {gas} data in mosaic")
+                return None
 
         except Exception as e:
             logger.error(f"Error fetching regional {gas} data: {e}")
@@ -275,13 +273,9 @@ class RegionalScanner:
                 gas_images[gas] = image
                 results['gases_scanned'] += 1
 
-                # Get timestamp
-                try:
-                    img_info = image.getInfo()
-                    ts_ms = img_info['properties']['system:time_start']
-                    gas_timestamps[gas] = datetime.fromtimestamp(ts_ms / 1000, tz=pytz.UTC)
-                except:
-                    gas_timestamps[gas] = datetime.now(pytz.UTC)
+                # Mosaic doesn't have timestamp, use current time
+                # The mosaic combines recent images so "now" is appropriate
+                gas_timestamps[gas] = datetime.now(pytz.UTC)
 
         if not gas_images:
             logger.warning("No gas data available")
