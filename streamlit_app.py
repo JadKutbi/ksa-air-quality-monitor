@@ -37,8 +37,16 @@ from dashboard_components import (
     create_health_risk_panel,
     create_data_quality_panel,
     create_insights_panel,
-    create_historical_comparison
+    create_historical_comparison,
+    create_benchmark_summary,
+    create_city_rankings_table,
+    create_city_rankings_chart,
+    create_regional_comparison,
+    create_category_distribution,
+    create_gas_specific_ranking,
+    create_city_comparison
 )
+from benchmark_analyzer import CityBenchmarkAnalyzer
 import config
 
 
@@ -194,6 +202,10 @@ if 'confirm_clear' not in st.session_state:
     st.session_state.confirm_clear = False
 if 'current_tab' not in st.session_state:
     st.session_state.current_tab = 'overview'
+if 'benchmark_data' not in st.session_state:
+    st.session_state.benchmark_data = {}
+if 'benchmark_last_update' not in st.session_state:
+    st.session_state.benchmark_last_update = None
 
 
 def t(key: str) -> str:
@@ -1394,14 +1406,15 @@ def main():
         pass
 
     # Main content with translated tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         f"📊 {t('tab_overview')}",
         f"🌡️ {t('tab_aqi')}",
         f"🗺️ {t('tab_map')}",
         f"📈 {t('tab_analysis')}",
         f"⚠️ {t('tab_violations')}",
         f"💡 {t('tab_insights')}",
-        f"📜 {t('tab_history')}"
+        f"📜 {t('tab_history')}",
+        f"🏆 {t('tab_benchmark')}"
     ])
 
     # Fetch data
@@ -1504,6 +1517,156 @@ def main():
     with tab7:
         st.header(f"📜 {t('tab_history')}")
         display_violation_history(city)
+
+    with tab8:
+        st.header(f"🏆 {t('cities_benchmark')}")
+        st.markdown(f"*{t('benchmark_subtitle')}*")
+
+        # Initialize benchmark analyzer
+        benchmark_analyzer = CityBenchmarkAnalyzer()
+        lang = st.session_state.get('language', 'en')
+
+        # Fetch benchmark data button
+        col_btn1, col_btn2, col_spacer = st.columns([2, 2, 4])
+        with col_btn1:
+            if st.button(f"🔄 {t('fetch_all_cities')}", type="primary"):
+                # Fetch data for all cities
+                all_cities_data = {}
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+
+                cities_list = list(config.CITIES.keys())
+                for i, city_name in enumerate(cities_list):
+                    status_text.text(t('fetching_city_data').format(city=t(city_name)))
+                    try:
+                        city_data = fetch_pollution_data(city_name, days_back)
+                        all_cities_data[city_name] = city_data
+                    except Exception as e:
+                        st.warning(f"Error fetching data for {t(city_name)}: {e}")
+                        all_cities_data[city_name] = {}
+                    progress_bar.progress((i + 1) / len(cities_list))
+
+                # Store in session state
+                st.session_state.benchmark_data = all_cities_data
+                ksa_tz = pytz.timezone(config.TIMEZONE)
+                st.session_state.benchmark_last_update = datetime.now(ksa_tz).strftime("%Y-%m-%d %H:%M:%S KSA")
+
+                status_text.empty()
+                progress_bar.empty()
+                st.success(f"✅ {t('success')} - {len(all_cities_data)} {t('cities_monitored')}")
+                st.rerun()
+
+        with col_btn2:
+            if st.session_state.benchmark_last_update:
+                st.caption(f"📅 {t('last_benchmark_update')}: {st.session_state.benchmark_last_update}")
+
+        # Display benchmark data if available
+        if st.session_state.benchmark_data:
+            all_cities_data = st.session_state.benchmark_data
+
+            # Calculate rankings
+            rankings = benchmark_analyzer.rank_cities(all_cities_data)
+            summary_stats = benchmark_analyzer.get_summary_statistics(all_cities_data)
+            regional_stats = benchmark_analyzer.get_regional_statistics(all_cities_data)
+
+            # Summary metrics
+            create_benchmark_summary(summary_stats, lang)
+
+            st.divider()
+
+            # Sub-tabs for different views
+            benchmark_tab1, benchmark_tab2, benchmark_tab3, benchmark_tab4 = st.tabs([
+                f"📋 {t('city_rankings_table')}",
+                f"🗺️ {t('regional_comparison')}",
+                f"🧪 {t('gas_breakdown')}",
+                f"⚖️ {t('compare_cities')}"
+            ])
+
+            with benchmark_tab1:
+                # Rankings table
+                create_city_rankings_table(rankings, lang)
+
+                st.divider()
+
+                # Rankings chart
+                create_city_rankings_chart(rankings, lang)
+
+                # Category distribution
+                col1, col2 = st.columns(2)
+                with col1:
+                    create_category_distribution(rankings, lang)
+
+            with benchmark_tab2:
+                # Regional comparison
+                create_regional_comparison(regional_stats, lang)
+
+            with benchmark_tab3:
+                # Gas-specific rankings
+                st.subheader(f"🧪 {t('gas_breakdown')}")
+
+                selected_gas = st.selectbox(
+                    t('select_gas_ranking'),
+                    options=list(config.GAS_PRODUCTS.keys()),
+                    format_func=lambda x: t(x)
+                )
+
+                if selected_gas:
+                    gas_rankings = benchmark_analyzer.get_gas_leaderboard(all_cities_data, selected_gas)
+                    create_gas_specific_ranking(gas_rankings, selected_gas, lang)
+
+            with benchmark_tab4:
+                # City comparison
+                st.subheader(f"⚖️ {t('compare_cities')}")
+
+                col1, col2 = st.columns(2)
+                cities_list = list(config.CITIES.keys())
+
+                with col1:
+                    city1 = st.selectbox(
+                        t('select_city_1'),
+                        options=cities_list,
+                        format_func=lambda x: t(x),
+                        index=0
+                    )
+
+                with col2:
+                    city2 = st.selectbox(
+                        t('select_city_2'),
+                        options=cities_list,
+                        format_func=lambda x: t(x),
+                        index=min(1, len(cities_list)-1)
+                    )
+
+                if city1 and city2 and city1 != city2:
+                    comparison = benchmark_analyzer.compare_cities(
+                        all_cities_data.get(city1, {}),
+                        all_cities_data.get(city2, {}),
+                        city1,
+                        city2
+                    )
+                    create_city_comparison(comparison, lang)
+                elif city1 == city2:
+                    st.warning(f"⚠️ {t('select_different_cities')}")
+
+            # Note about benchmark methodology
+            st.divider()
+            st.info(f"ℹ️ {t('benchmark_note')}")
+
+        else:
+            # No benchmark data yet
+            st.info(f"ℹ️ {t('no_benchmark_data')}")
+
+            # Show placeholder with info about what the benchmark will show
+            st.markdown("""
+            ### What you'll see after loading benchmark data:
+
+            - **City Rankings**: All 21 Saudi cities ranked from cleanest to most polluted
+            - **Regional Comparison**: Compare pollution levels across Western, Eastern, Central, Southern, and Northern regions
+            - **Gas-Specific Rankings**: See which cities have the highest/lowest levels for each gas
+            - **City Comparison**: Compare any two cities side-by-side
+
+            Click "Fetch Data for All Cities" above to load the benchmark data.
+            """)
 
     # Footer with enhanced information
     st.divider()

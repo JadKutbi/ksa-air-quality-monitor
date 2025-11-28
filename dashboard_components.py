@@ -6,11 +6,13 @@ import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+import numpy as np
 from typing import Dict, List
 import pytz
 from datetime import datetime
 import config
 from translations import get_text
+from benchmark_analyzer import CityBenchmarkAnalyzer
 
 
 def t(key: str) -> str:
@@ -334,3 +336,369 @@ def create_historical_comparison(pollution_data: Dict) -> None:
             st.warning(f"⚠️ **{len(violations)} {t('pollutants_exceeding')}**: {', '.join(violations['Gas'].tolist())}")
         else:
             st.success(f"✅ {t('all_within_guidelines')}")
+
+
+def get_category_translation(category: str, lang: str = 'en') -> str:
+    """Get translated category name."""
+    category_map = {
+        'cleanest': 'category_cleanest',
+        'clean': 'category_clean',
+        'moderate': 'category_moderate',
+        'polluted': 'category_polluted',
+        'heavily_polluted': 'category_heavily_polluted',
+        'unknown': 'category_unknown'
+    }
+    key = category_map.get(category, 'category_unknown')
+    return get_text(key, lang)
+
+
+def create_benchmark_summary(summary_stats: Dict, lang: str = 'en') -> None:
+    """Create summary statistics panel for benchmark."""
+    st.subheader(f"📊 {get_text('benchmark_summary', lang)}")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            get_text('cities_monitored', lang),
+            f"{summary_stats['cities_with_data']}/{summary_stats['total_cities']}"
+        )
+
+    with col2:
+        cleanest = summary_stats.get('cleanest_city')
+        if cleanest:
+            st.metric(
+                get_text('cleanest_city', lang),
+                get_text(cleanest['city'], lang),
+                f"{cleanest['pollution_index']:.1f}%"
+            )
+        else:
+            st.metric(get_text('cleanest_city', lang), "—")
+
+    with col3:
+        most_polluted = summary_stats.get('most_polluted_city')
+        if most_polluted:
+            st.metric(
+                get_text('most_polluted_city', lang),
+                get_text(most_polluted['city'], lang),
+                f"{most_polluted['pollution_index']:.1f}%",
+                delta_color="inverse"
+            )
+        else:
+            st.metric(get_text('most_polluted_city', lang), "—")
+
+    with col4:
+        st.metric(
+            get_text('cities_with_violations', lang),
+            summary_stats.get('cities_with_violations', 0),
+            f"{summary_stats.get('total_violations', 0)} {get_text('violations', lang)}"
+        )
+
+
+def create_city_rankings_table(rankings: List[Dict], lang: str = 'en') -> None:
+    """Create the main city rankings table."""
+    st.subheader(f"🏆 {get_text('city_rankings_table', lang)}")
+
+    # Prepare data for the table
+    table_data = []
+    for city_data in rankings:
+        if city_data['has_data']:
+            row = {
+                get_text('rank', lang): city_data['rank'],
+                get_text('city', lang): get_text(city_data['city'], lang),
+                get_text('region', lang): get_text(city_data['region'], lang),
+                get_text('pollution_index', lang): f"{city_data['pollution_index']:.1f}%",
+                get_text('category', lang): get_category_translation(city_data['category'], lang),
+                get_text('violations_count', lang): city_data['violation_count'],
+            }
+            table_data.append(row)
+
+    if table_data:
+        df = pd.DataFrame(table_data)
+
+        # Style the dataframe
+        def color_pollution_index(val):
+            try:
+                num = float(val.replace('%', ''))
+                if num < 25:
+                    return 'background-color: #d1fae5; color: #065f46'
+                elif num < 50:
+                    return 'background-color: #dcfce7; color: #166534'
+                elif num < 75:
+                    return 'background-color: #fef3c7; color: #92400e'
+                elif num < 100:
+                    return 'background-color: #fee2e2; color: #991b1b'
+                else:
+                    return 'background-color: #fecaca; color: #7f1d1d'
+            except (ValueError, AttributeError, TypeError):
+                return ''
+
+        styled_df = df.style.map(
+            color_pollution_index,
+            subset=[get_text('pollution_index', lang)]
+        )
+
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    else:
+        st.info(get_text('no_benchmark_data', lang))
+
+
+def create_city_rankings_chart(rankings: List[Dict], lang: str = 'en') -> None:
+    """Create a horizontal bar chart of city rankings."""
+    cities_with_data = [c for c in rankings if c['has_data']]
+
+    if not cities_with_data:
+        return
+
+    # Prepare data
+    cities = [get_text(c['city'], lang) for c in cities_with_data]
+    indices = [c['pollution_index'] for c in cities_with_data]
+    colors = [c['category_info'].get('color', '#6b7280') for c in cities_with_data]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        y=cities,
+        x=indices,
+        orientation='h',
+        marker_color=colors,
+        text=[f"{idx:.1f}%" for idx in indices],
+        textposition='outside',
+        hovertemplate='<b>%{y}</b><br>' +
+                     f'{get_text("pollution_index", lang)}: %{{x:.1f}}%<extra></extra>'
+    ))
+
+    # Add threshold line at 100%
+    fig.add_vline(x=100, line_dash="dash", line_color="red",
+                  annotation_text=get_text('threshold', lang))
+
+    fig.update_layout(
+        title=get_text('city_rankings_table', lang),
+        xaxis_title=get_text('pollution_index', lang) + " (% " + get_text('of_threshold', lang) + ")",
+        yaxis_title=get_text('city', lang),
+        height=max(400, len(cities_with_data) * 35),
+        showlegend=False,
+        yaxis={'categoryorder': 'total ascending'}
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def create_regional_comparison(regional_stats: Dict[str, Dict], lang: str = 'en') -> None:
+    """Create regional comparison charts."""
+    st.subheader(f"🗺️ {get_text('regional_comparison', lang)}")
+
+    col1, col2 = st.columns(2)
+
+    # Prepare data
+    regions_with_data = {k: v for k, v in regional_stats.items()
+                        if v.get('avg_pollution_index') is not None}
+
+    if not regions_with_data:
+        st.info(get_text('no_benchmark_data', lang))
+        return
+
+    with col1:
+        # Average pollution by region
+        regions = [get_text(r, lang) for r in regions_with_data.keys()]
+        avg_indices = [v['avg_pollution_index'] for v in regions_with_data.values()]
+
+        # Determine colors based on pollution level
+        colors = []
+        for idx in avg_indices:
+            if idx < 25:
+                colors.append('#10b981')
+            elif idx < 50:
+                colors.append('#22c55e')
+            elif idx < 75:
+                colors.append('#f59e0b')
+            elif idx < 100:
+                colors.append('#ef4444')
+            else:
+                colors.append('#dc2626')
+
+        fig_avg = go.Figure(go.Bar(
+            x=regions,
+            y=avg_indices,
+            marker_color=colors,
+            text=[f"{idx:.1f}%" for idx in avg_indices],
+            textposition='outside'
+        ))
+
+        fig_avg.add_hline(y=100, line_dash="dash", line_color="red")
+
+        fig_avg.update_layout(
+            title=get_text('regional_avg_pollution', lang),
+            xaxis_title=get_text('region', lang),
+            yaxis_title=get_text('pollution_index', lang),
+            height=350
+        )
+
+        st.plotly_chart(fig_avg, use_container_width=True)
+
+    with col2:
+        # Violations by region
+        violations = [v['total_violations'] for v in regions_with_data.values()]
+
+        fig_viol = go.Figure(go.Bar(
+            x=regions,
+            y=violations,
+            marker_color='#ef4444',
+            text=violations,
+            textposition='outside'
+        ))
+
+        fig_viol.update_layout(
+            title=get_text('regional_violations', lang),
+            xaxis_title=get_text('region', lang),
+            yaxis_title=get_text('violations_count', lang),
+            height=350
+        )
+
+        st.plotly_chart(fig_viol, use_container_width=True)
+
+
+def create_category_distribution(rankings: List[Dict], lang: str = 'en') -> None:
+    """Create pie chart of pollution category distribution."""
+    cities_with_data = [c for c in rankings if c['has_data']]
+
+    if not cities_with_data:
+        return
+
+    # Count categories
+    category_counts = {}
+    category_colors = {}
+    for city in cities_with_data:
+        cat = city['category']
+        cat_label = get_category_translation(cat, lang)
+        category_counts[cat_label] = category_counts.get(cat_label, 0) + 1
+        category_colors[cat_label] = city['category_info'].get('color', '#6b7280')
+
+    labels = list(category_counts.keys())
+    values = list(category_counts.values())
+    colors = [category_colors.get(l, '#6b7280') for l in labels]
+
+    fig = go.Figure(go.Pie(
+        labels=labels,
+        values=values,
+        marker_colors=colors,
+        textinfo='label+value',
+        texttemplate='%{label}<br>%{value} ' + get_text('cities_in_category', lang).split()[0],
+        hole=0.4
+    ))
+
+    fig.update_layout(
+        title=get_text('pollution_distribution', lang),
+        height=350,
+        showlegend=True
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def create_gas_specific_ranking(gas_rankings: List[Dict], gas: str, lang: str = 'en') -> None:
+    """Create ranking chart for a specific gas."""
+    cities_with_data = [c for c in gas_rankings if c['has_data']]
+
+    if not cities_with_data:
+        st.info(get_text('no_benchmark_data', lang))
+        return
+
+    # Prepare data
+    cities = [get_text(c['city'], lang) for c in cities_with_data]
+    threshold_percents = [c['threshold_percent'] for c in cities_with_data]
+
+    # Color based on violation status
+    colors = ['#ef4444' if c['is_violation'] else '#22c55e' for c in cities_with_data]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        y=cities,
+        x=threshold_percents,
+        orientation='h',
+        marker_color=colors,
+        text=[f"{p:.1f}%" for p in threshold_percents],
+        textposition='outside'
+    ))
+
+    # Add threshold line
+    fig.add_vline(x=100, line_dash="dash", line_color="red",
+                  annotation_text=get_text('threshold', lang))
+
+    fig.update_layout(
+        title=get_text('gas_ranking_for', lang).format(gas=get_text(gas, lang)),
+        xaxis_title=get_text('threshold_percent', lang),
+        yaxis_title=get_text('city', lang),
+        height=max(400, len(cities_with_data) * 35),
+        showlegend=False,
+        yaxis={'categoryorder': 'total ascending'}
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def create_city_comparison(comparison_result: Dict, lang: str = 'en') -> None:
+    """Create city comparison visualization."""
+    city1 = comparison_result['city1']
+    city2 = comparison_result['city2']
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"### {get_text(city1['name'], lang)}")
+        st.metric(
+            get_text('pollution_index', lang),
+            f"{city1['pollution_index']:.1f}%" if city1['pollution_index'] else "—"
+        )
+        st.metric(
+            get_text('category', lang),
+            get_category_translation(city1['category'], lang)
+        )
+        st.metric(
+            get_text('violations_count', lang),
+            city1['violations']
+        )
+
+    with col2:
+        st.markdown(f"### {get_text(city2['name'], lang)}")
+        st.metric(
+            get_text('pollution_index', lang),
+            f"{city2['pollution_index']:.1f}%" if city2['pollution_index'] else "—"
+        )
+        st.metric(
+            get_text('category', lang),
+            get_category_translation(city2['category'], lang)
+        )
+        st.metric(
+            get_text('violations_count', lang),
+            city2['violations']
+        )
+
+    # Show comparison result
+    st.divider()
+    if comparison_result['overall_cleaner'] not in ['equal', 'insufficient_data']:
+        cleaner_city = comparison_result['overall_cleaner']
+        diff = comparison_result['difference_percent']
+        st.success(f"🏆 **{get_text(cleaner_city, lang)}** {get_text('cleaner_by', lang)} **{diff:.1f}%**")
+    elif comparison_result['overall_cleaner'] == 'equal':
+        st.info(f"⚖️ {get_text('comparison_result', lang)}: {get_text('equal_pollution', lang)}")
+    else:
+        st.warning(f"⚠️ {get_text('insufficient_data_comparison', lang)}")
+
+    # Gas-by-gas comparison
+    if comparison_result.get('gas_comparisons'):
+        st.subheader(get_text('gas_breakdown', lang))
+
+        comparison_data = []
+        for gas, comp in comparison_result['gas_comparisons'].items():
+            comparison_data.append({
+                'Gas': get_text(gas, lang),
+                get_text(city1['name'], lang): f"{comp['city1_percent']:.1f}%",
+                get_text(city2['name'], lang): f"{comp['city2_percent']:.1f}%",
+                get_text('cleanest_city', lang): get_text(comp['cleaner_city'], lang) if comp['cleaner_city'] != 'equal' else '='
+            })
+
+        if comparison_data:
+            df = pd.DataFrame(comparison_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
