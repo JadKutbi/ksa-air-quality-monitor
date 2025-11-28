@@ -494,15 +494,28 @@ class ViolationRecorder:
         Returns:
             Number of records deleted
         """
-        records = self.get_all_violations(limit=None)
-        deleted_count = 0
+        try:
+            records = self.get_all_violations(limit=None)
+            if not records:
+                logger.info("No violations to clear")
+                return 0
 
-        for record in records:
-            if self.delete_violation(record['id']):
-                deleted_count += 1
+            deleted_count = 0
 
-        logger.info(f"Cleared {deleted_count} violation records")
-        return deleted_count
+            for record in records:
+                record_id = record.get('id')
+                if record_id:
+                    if self.delete_violation(record_id):
+                        deleted_count += 1
+                else:
+                    logger.warning(f"Record missing 'id' field: {record.get('city', 'unknown')}")
+
+            logger.info(f"Cleared {deleted_count} violation records")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"Error clearing violations: {e}")
+            return 0
 
     def get_statistics(self, city: Optional[str] = None) -> Dict:
         """Get violation statistics"""

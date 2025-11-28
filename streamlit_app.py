@@ -1599,11 +1599,18 @@ def main():
                 if st.button(f"🗑️ {t('clear_all_history')}", type="secondary"):
                     if st.session_state.confirm_clear_all:
                         # Actually clear
-                        if recorder:
-                            deleted = recorder.clear_all_violations()
-                            st.success(t('all_history_cleared').format(count=deleted))
+                        if recorder and recorder.use_firestore:
+                            try:
+                                deleted = recorder.clear_all_violations()
+                                st.success(t('all_history_cleared').format(count=deleted))
+                                st.session_state.confirm_clear_all = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error clearing history: {e}")
+                                st.session_state.confirm_clear_all = False
+                        else:
+                            st.error("Database not available")
                             st.session_state.confirm_clear_all = False
-                            st.rerun()
                     else:
                         st.session_state.confirm_clear_all = True
                         st.warning(t('click_to_confirm_clear_all'))
